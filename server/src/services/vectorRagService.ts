@@ -83,30 +83,42 @@ const CLINICAL_KNOWLEDGE_CHUNKS = [
  */
 async function embedText(text: string): Promise<number[]> {
   if (!GEMINI_API_KEY) {
-    // Return a deterministic pseudo-embedding based on text hash for demo mode
     const hash = simpleHash(text);
     return Array.from({ length: EMBEDDING_DIMENSION }, (_, i) => 
       Math.sin(hash * (i + 1) * 0.001) * 0.5
     );
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${GEMINI_API_KEY}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: `models/${EMBEDDING_MODEL}`,
-      content: { parts: [{ text }] },
-    }),
-  });
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Embedding API error ${response.status}: ${errText}`);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${GEMINI_API_KEY}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: `models/${EMBEDDING_MODEL}`,
+        content: { parts: [{ text }] },
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = (await response.json()) as any;
+      if (data?.embedding?.values) {
+        return data.embedding.values;
+      }
+    }
+  } catch (err: any) {
+    logger.warn(`[VectorRAG] Embedding fetch issue: ${err.message}. Using fallback vector.`);
   }
 
-  const data = (await response.json()) as any;
-  return data.embedding.values;
+  const hash = simpleHash(text);
+  return Array.from({ length: EMBEDDING_DIMENSION }, (_, i) => 
+    Math.sin(hash * (i + 1) * 0.001) * 0.5
+  );
 }
 
 function simpleHash(str: string): number {

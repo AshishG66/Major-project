@@ -193,39 +193,39 @@ export default function LandingPage() {
   return (
     <div 
       onMouseMove={handleBgMouseMove}
-      className="min-h-screen bg-health-darker text-white relative overflow-hidden flex flex-col scroll-smooth transition-colors duration-500"
+      className="min-h-screen bg-slate-50 text-slate-900 relative overflow-hidden flex flex-col scroll-smooth transition-colors duration-500"
     >
-      {/* Dynamic interactive background lights (aurora coordinates react to mouse cursor!) */}
+      {/* Dynamic interactive background lights */}
       <div 
-        className="absolute w-[50%] h-[50%] bg-health-blue/10 rounded-full blur-[140px] pointer-events-none transition-all duration-700 ease-out" 
+        className="absolute w-[50%] h-[50%] bg-blue-500/10 rounded-full blur-[140px] pointer-events-none transition-all duration-700 ease-out" 
         style={{ left: `${bgCoords.x - 25}%`, top: `${bgCoords.y - 25}%` }}
       />
-      <div className="absolute top-[35%] right-[-10%] w-[50%] h-[50%] bg-health-violet/8 rounded-full blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-[5%] left-[10%] w-[50%] h-[50%] bg-health-cyan/6 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-[35%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/8 rounded-full blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-[5%] left-[10%] w-[50%] h-[50%] bg-blue-600/6 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Floating SVG grids background */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+      <div className="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none" />
 
       {/* Header Bar */}
-      <header className="sticky top-0 z-50 glass-panel border-b border-white/5 backdrop-blur-md px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-50 glass-panel border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-xs">
         <Link to="/" className="flex items-center space-x-2.5">
-          <Heart className="h-6 w-6 text-health-rose animate-pulse" />
-          <span className="font-display font-bold text-xl tracking-tight bg-gradient-to-r from-health-blue via-health-cyan to-health-emerald bg-clip-text text-transparent">
-            HridyaDarpan
+          <Heart className="h-6 w-6 text-rose-500 animate-pulse" />
+          <span className="font-display font-bold text-xl tracking-tight bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
+            HridayaDarpana
           </span>
         </Link>
-        <nav className="hidden lg:flex items-center space-x-8 text-sm font-medium text-health-textMuted">
-          <a href="#interactive" className="hover:text-white transition-colors">ECG Simulator</a>
-          <a href="#workflow" className="hover:text-white transition-colors">AI Routing</a>
-          <a href="#preview" className="hover:text-white transition-colors">Preview</a>
-          <a href="#architecture" className="hover:text-white transition-colors">Architecture</a>
-          <a href="#testimonials" className="hover:text-white transition-colors">Reviews</a>
+        <nav className="hidden lg:flex items-center space-x-8 text-sm font-medium text-slate-600">
+          <a href="#interactive" className="hover:text-slate-900 transition-colors">ECG Simulator</a>
+          <a href="#workflow" className="hover:text-slate-900 transition-colors">AI Routing</a>
+          <a href="#preview" className="hover:text-slate-900 transition-colors">Preview</a>
+          <a href="#architecture" className="hover:text-slate-900 transition-colors">Architecture</a>
+          <a href="#testimonials" className="hover:text-slate-900 transition-colors">Reviews</a>
         </nav>
         <div className="flex items-center space-x-4">
-          <Link to="/login" className="text-sm font-medium hover:text-white text-health-textMuted transition-colors">
+          <Link to="/login" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
             Login
           </Link>
-          <Link to="/register" className="px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-health-blue to-health-cyan text-white hover:shadow-glow transition-all hover:scale-[1.02]">
+          <Link to="/register" className="px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 shadow-xs transition-all hover:scale-[1.02]">
             Enter Portal
           </Link>
         </div>
@@ -238,9 +238,9 @@ export default function LandingPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full border border-health-cyan/30 bg-health-cyan/5 text-health-cyan text-[10px] font-bold mb-8 uppercase tracking-widest"
+          className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full border border-blue-200 bg-blue-50 text-blue-600 text-[10px] font-bold mb-8 uppercase tracking-widest"
         >
-          <Sparkles className="h-3.5 w-3.5 text-health-cyan animate-spin" />
+          <Sparkles className="h-3.5 w-3.5 text-blue-600 animate-spin" />
           <span>Next-Gen Multi-Agent Cardiovascular Intelligence</span>
         </motion.div>
         
@@ -248,10 +248,10 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="text-4xl sm:text-6xl font-display font-extrabold tracking-tight leading-tight mb-6"
+          className="text-4xl sm:text-6xl font-display font-extrabold tracking-tight leading-tight mb-6 text-slate-900"
         >
           Enterprise AI Platform for <br />
-          <span className="bg-gradient-to-r from-health-blue via-health-cyan to-health-emerald bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
             Cardiovascular Diagnostics & Care
           </span>
         </motion.h1>
@@ -260,7 +260,7 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="text-base sm:text-lg text-health-textMuted max-w-3xl mb-10 leading-relaxed font-light"
+          className="text-base sm:text-lg text-slate-600 max-w-3xl mb-10 leading-relaxed font-light mx-auto"
         >
           Evaluate patient vitals with ROC-AUC optimized XGBoost pipelines. Inspect game-theoretic SHAP attributions, coordinate specialized diet/exercise agents, parse clinical reports, and audit notes.
         </motion.p>
@@ -271,34 +271,34 @@ export default function LandingPage() {
           transition={{ delay: 0.3 }}
           className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 w-full"
         >
-          <Link to="/register" className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-health-blue to-health-cyan hover:shadow-glow text-white font-semibold transition-all hover:scale-[1.02] flex items-center justify-center space-x-2">
+          <Link to="/register" className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold shadow-xs transition-all hover:scale-[1.02] flex items-center justify-center space-x-2">
             <span>Access Platform Free</span>
             <ArrowRight className="h-5 w-5" />
           </Link>
-          <a href="#workflow" className="w-full sm:w-auto px-8 py-4 rounded-xl border border-white/5 hover:border-white/10 bg-white/5 font-semibold transition-colors flex items-center justify-center">
+          <a href="#workflow" className="w-full sm:w-auto px-8 py-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold shadow-xs transition-colors flex items-center justify-center">
             Try AI Routing Simulator
           </a>
         </motion.div>
       </section>
 
       {/* Interactive ECG Heart Rhythm Section */}
-      <section id="interactive" className="py-20 border-t border-white/5 relative bg-black/10">
+      <section id="interactive" className="py-20 border-t border-slate-200/80 relative bg-slate-100/50">
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-health-rose/30 bg-health-rose/5 text-health-rose text-[9px] font-bold uppercase tracking-widest">
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-rose-200 bg-rose-50 text-rose-600 text-[9px] font-bold uppercase tracking-widest">
               <Activity className="h-3 w-3" />
               <span>Realtime Waveform Monitor</span>
             </div>
-            <h2 className="text-3xl font-display font-extrabold tracking-tight">Interactive Heart Rhythm Simulator</h2>
-            <p className="text-sm text-health-textMuted leading-relaxed font-light">
-              HridyaDarpan's interface beats dynamically. Adjust the heart rate slider to accelerate myocardial contraction cycles and monitor the real-time changes in blood pressure variables. Hover over the ECG to see the trace react!
+            <h2 className="text-3xl font-display font-extrabold tracking-tight text-slate-900">Interactive Heart Rhythm Simulator</h2>
+            <p className="text-sm text-slate-600 leading-relaxed font-light">
+              HridayaDarpana's interface beats dynamically. Adjust the heart rate slider to accelerate myocardial contraction cycles and monitor the real-time changes in blood pressure variables. Hover over the ECG to see the trace react!
             </p>
             
             {/* Slider */}
-            <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-5">
-              <div className="flex justify-between text-xs font-semibold">
+            <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-5">
+              <div className="flex justify-between text-xs font-semibold text-slate-700">
                 <span>Simulated Heart Rate:</span>
-                <span className="text-health-rose font-bold text-sm">{heartRate} bpm</span>
+                <span className="text-rose-600 font-bold text-sm">{heartRate} bpm</span>
               </div>
               <input
                 type="range"
@@ -306,9 +306,9 @@ export default function LandingPage() {
                 max="160"
                 value={heartRate}
                 onChange={(e) => setHeartRate(Number(e.target.value))}
-                className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-health-rose"
+                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-600"
               />
-              <div className="flex justify-between text-[10px] text-health-textMuted font-medium">
+              <div className="flex justify-between text-[10px] text-slate-500 font-medium">
                 <span>Bradycardia (40 bpm)</span>
                 <span>Normal Pulse (60-100)</span>
                 <span>Tachycardia (160 bpm)</span>
@@ -318,45 +318,44 @@ export default function LandingPage() {
 
           {/* Beating Heart Monitor Panel */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center">
-            <div className="relative w-full max-w-sm glass-panel rounded-2xl border-white/5 shadow-glow p-6 flex flex-col items-center">
-              <span className="absolute top-3 left-3 text-[9px] uppercase font-bold text-health-textMuted tracking-wider">Myocardial Oscillation</span>
+            <div className="relative w-full max-w-sm glass-panel rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm p-6 flex flex-col items-center">
+              <span className="absolute top-3 left-3 text-[9px] uppercase font-bold text-slate-500 tracking-wider">Myocardial Oscillation</span>
               
               {/* Dynamic 3D Beating Heart in center */}
               <div className="h-44 w-full flex items-center justify-center relative overflow-hidden rounded-xl">
-                <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="h-8 w-8 text-health-cyan animate-spin" /></div>}>
+                <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin" /></div>}>
                   <ThreeHeart heartRate={heartRate} glowIntensity={heartRate > 100 ? 1.8 : 1.0} />
                 </Suspense>
               </div>
 
-
-              {/* Scrolling ECG Waveform line with mouseover reaction! */}
+              {/* Scrolling ECG Waveform line */}
               <div 
-                onMouseEnter={() => setEcgSpeedMultiplier(0.4)} // accelerates the loop scroll speed
+                onMouseEnter={() => setEcgSpeedMultiplier(0.4)}
                 onMouseLeave={() => setEcgSpeedMultiplier(1.0)}
-                className="w-full h-16 bg-[#030712]/80 border border-white/5 rounded-lg overflow-hidden relative mt-2 cursor-pointer"
+                className="w-full h-16 bg-slate-900 border border-slate-800 rounded-lg overflow-hidden relative mt-2 cursor-pointer"
                 title="Hover over ECG to accelerate pulse speed"
               >
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 60" preserveAspectRatio="none">
-                  <path d="M0 10 H300 M0 20 H300 M0 30 H300 M0 40 H300 M0 50 H300 M50 0 V60 M100 0 V60 M150 0 V60 M200 0 V60 M250 0 V60" stroke="rgba(244, 63, 94, 0.05)" strokeWidth="0.5" />
+                  <path d="M0 10 H300 M0 20 H300 M0 30 H300 M0 40 H300 M0 50 H300 M50 0 V60 M100 0 V60 M150 0 V60 M200 0 V60 M250 0 V60" stroke="rgba(244, 63, 94, 0.12)" strokeWidth="0.5" />
                   
                   <path
                     d="M0 30 L60 30 L68 25 L73 30 L78 30 L85 10 L92 50 L98 30 L108 30 L115 35 L120 30 L180 30 L188 25 L193 30 L198 30 L205 10 L212 50 L218 30 L228 30 L235 35 L240 30 L300 30"
                     fill="none"
-                    stroke="#F43F5E"
+                    stroke="#EF4444"
                     strokeWidth="1.5"
                     strokeDasharray="200"
                     style={{
                       strokeDashoffset: 0,
                       animation: `ecgScroll ${Number(animationDuration) * 1.5 * ecgSpeedMultiplier}s linear infinite`
                     }}
-                    className="drop-shadow-[0_0_4px_rgba(244,63,94,0.5)]"
+                    className="drop-shadow-[0_0_4px_rgba(239,68,68,0.8)]"
                   />
                 </svg>
               </div>
 
-              <div className="flex justify-between w-full mt-4 text-[9px] text-health-textMuted uppercase font-bold tracking-wider">
+              <div className="flex justify-between w-full mt-4 text-[9px] text-slate-500 uppercase font-bold tracking-wider">
                 <span>Rhythm Duration: {animationDuration}s</span>
-                <span>Active output</span>
+                <span className="text-emerald-600">Active output</span>
               </div>
             </div>
           </div>
@@ -364,15 +363,15 @@ export default function LandingPage() {
       </section>
 
       {/* AI Specialist Routing Simulator */}
-      <section id="workflow" className="py-20 border-t border-white/5 relative">
+      <section id="workflow" className="py-20 border-t border-slate-200/80 relative">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16 space-y-3">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-health-cyan/30 bg-health-cyan/5 text-health-cyan text-[9px] font-bold uppercase tracking-widest">
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-600 text-[9px] font-bold uppercase tracking-widest">
               <Zap className="h-3 w-3" />
               <span>Multi-Agent Dispatch Broker</span>
             </div>
-            <h2 className="text-3xl font-display font-extrabold tracking-tight">HridyaAI Specialist Workflow Routing</h2>
-            <p className="text-sm text-health-textMuted max-w-2xl mx-auto font-light leading-relaxed">
+            <h2 className="text-3xl font-display font-extrabold tracking-tight text-slate-900">HridyaAI Specialist Workflow Routing</h2>
+            <p className="text-sm text-slate-600 max-w-2xl mx-auto font-light leading-relaxed">
               HridyaAI orchestrates specialist health agents to solve patient requests. Click a query below to simulate Gateway routing, active agent selection, and responsive generation.
             </p>
           </div>
@@ -380,27 +379,27 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Selection Column */}
             <div className="lg:col-span-4 space-y-4">
-              <h4 className="font-display font-bold text-xs uppercase text-health-textMuted tracking-wider mb-2">Simulate Patient Query</h4>
+              <h4 className="font-display font-bold text-xs uppercase text-slate-500 tracking-wider mb-2">Simulate Patient Query</h4>
               {workflowQueries.map((item, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleTriggerWorkflow(item)}
-                  className={`w-full text-left p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 transition-all flex flex-col text-xs space-y-1.5 ${
-                    workflowQuery === item.q ? 'ring-2 ring-health-cyan bg-health-cyan/5 border-transparent' : ''
+                  className={`w-full text-left p-4 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 transition-all flex flex-col text-xs space-y-1.5 shadow-xs ${
+                    workflowQuery === item.q ? 'ring-2 ring-blue-600 bg-blue-50/50 border-blue-300' : ''
                   }`}
                 >
-                  <span className="font-semibold text-white/95 italic">"{item.q}"</span>
-                  <span className="text-[9px] text-health-textMuted uppercase font-bold">Target: {item.agent}</span>
+                  <span className="font-semibold text-slate-900 italic">"{item.q}"</span>
+                  <span className="text-[9px] text-slate-500 uppercase font-bold">Target: {item.agent}</span>
                 </button>
               ))}
             </div>
 
             {/* Pipeline Routing Column */}
-            <div className="lg:col-span-8 glass-panel p-6 rounded-2xl border-white/5 min-h-[320px] flex flex-col justify-between">
+            <div className="lg:col-span-8 glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm min-h-[320px] flex flex-col justify-between">
               {!workflowQuery ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center py-12 space-y-3">
-                  <Brain className="h-10 w-10 text-health-cyan/35 animate-pulse" />
-                  <p className="text-xs text-health-textMuted font-light">Select a patient query card on the left to start the cognitive orchestration simulation.</p>
+                  <Brain className="h-10 w-10 text-blue-400 animate-pulse" />
+                  <p className="text-xs text-slate-500 font-light">Select a patient query card on the left to start the cognitive orchestration simulation.</p>
                 </div>
               ) : (
                 <div className="space-y-6 flex-1 flex flex-col justify-between">
@@ -409,26 +408,26 @@ export default function LandingPage() {
                     {workflowQueries.find((wq) => wq.q === workflowQuery)?.steps.map((stepName, stepIdx) => (
                       <div key={stepIdx} className="space-y-1.5 text-center">
                         <div className={`h-1 rounded-full transition-all duration-500 ${
-                          activeStep >= stepIdx ? 'bg-health-cyan shadow-glow' : 'bg-white/5'
+                          activeStep >= stepIdx ? 'bg-blue-600 shadow-xs' : 'bg-slate-200'
                         }`} />
                         <span className={`text-[8px] uppercase tracking-wider font-bold block transition-colors ${
-                          activeStep >= stepIdx ? 'text-white' : 'text-health-textMuted'
+                          activeStep >= stepIdx ? 'text-slate-900' : 'text-slate-400'
                         }`}>{stepName}</span>
                       </div>
                     ))}
                   </div>
 
                   {/* Active Agent Box */}
-                  <div className="p-4 rounded-xl bg-[#030712]/50 border border-white/5 flex items-center justify-between min-h-[64px]">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between min-h-[64px]">
                     <div className="flex items-center space-x-3">
                       <div className={`h-9 w-9 rounded-lg flex items-center justify-center text-white ${
-                        activeStep >= 2 ? 'bg-health-cyan shadow-glow animate-pulse' : 'bg-white/5 text-health-textMuted'
+                        activeStep >= 2 ? 'bg-blue-600 shadow-xs animate-pulse' : 'bg-slate-200 text-slate-500'
                       }`}>
                         <Brain className="h-5 w-5" />
                       </div>
                       <div>
-                        <span className="text-[9px] text-health-textMuted uppercase font-bold block">Active Node State</span>
-                        <span className="text-xs font-bold">
+                        <span className="text-[9px] text-slate-500 uppercase font-bold block">Active Node State</span>
+                        <span className="text-xs font-bold text-slate-900">
                           {activeStep === 0 ? "Parsing Request in API Gateway..." :
                            activeStep === 1 ? "Checking Health Profile Context..." :
                            activeStep === 2 ? `Activating Specialist: ${workflowQueries.find((wq) => wq.q === workflowQuery)?.agent}` :
@@ -439,18 +438,18 @@ export default function LandingPage() {
                   </div>
 
                   {/* Response bubble */}
-                  <div className="bg-white/5 border border-white/5 p-4 rounded-xl text-xs min-h-[90px] flex items-center">
+                  <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-xl text-xs min-h-[90px] flex items-center">
                     {activeStep < 3 ? (
-                      <div className="flex items-center space-x-2 text-health-textMuted">
-                        <span className="h-1.5 w-1.5 bg-health-cyan rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="h-1.5 w-1.5 bg-health-cyan rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="h-1.5 w-1.5 bg-health-cyan rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        <span className="text-[10px] uppercase font-bold pl-1 tracking-wider">Generating recommendations...</span>
+                      <div className="flex items-center space-x-2 text-slate-500">
+                        <span className="h-1.5 w-1.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="h-1.5 w-1.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="h-1.5 w-1.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <span className="text-[10px] uppercase font-bold pl-1 tracking-wider text-slate-600">Generating recommendations...</span>
                       </div>
                     ) : (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-1.5 leading-relaxed font-light">
-                        <span className="text-[9px] uppercase font-bold bg-health-cyan/10 text-health-cyan border border-health-cyan/20 px-2 py-0.5 rounded">HridyaAI Response</span>
-                        <p className="mt-1">{workflowResponse}</p>
+                        <span className="text-[9px] uppercase font-bold bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded">HridyaAI Response</span>
+                        <p className="mt-1 text-slate-800">{workflowResponse}</p>
                       </motion.div>
                     )}
                   </div>
@@ -461,12 +460,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Dashboard Preview Section (Parallax fade-in) */}
-      <section id="preview" className="py-20 bg-health-dark border-t border-white/5 relative overflow-hidden">
+      {/* Dashboard Preview Section */}
+      <section id="preview" className="py-20 bg-slate-100/50 border-t border-slate-200/80 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12 space-y-2">
-            <h2 className="text-2xl sm:text-3xl font-display font-extrabold tracking-tight">Enterprise Clinical Control Panel</h2>
-            <p className="text-xs text-health-textMuted max-w-2xl mx-auto font-light leading-relaxed">
+            <h2 className="text-2xl sm:text-3xl font-display font-extrabold tracking-tight text-slate-900">Enterprise Clinical Control Panel</h2>
+            <p className="text-xs text-slate-600 max-w-2xl mx-auto font-light leading-relaxed">
               Experience the command center interface. Visualized vitals, SHAP features, and multi-agent coordination metrics mapped beautifully.
             </p>
           </div>
@@ -477,58 +476,58 @@ export default function LandingPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
-            className="w-full max-w-5xl mx-auto glass-panel-glow border-white/5 p-6 rounded-2xl relative shadow-glow flex flex-col space-y-6"
+            className="w-full max-w-5xl mx-auto bg-white border border-slate-200/80 p-6 rounded-2xl relative shadow-saas-lg flex flex-col space-y-6"
           >
             {/* Header bar mock */}
-            <div className="flex justify-between items-center border-b border-white/5 pb-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div className="flex items-center space-x-2">
-                <span className="h-3 w-3 bg-red-500 rounded-full" />
-                <span className="h-3 w-3 bg-yellow-500 rounded-full" />
-                <span className="h-3 w-3 bg-green-500 rounded-full" />
-                <span className="text-[10px] text-health-textMuted font-bold uppercase pl-2">Preview Mode: Dashboard</span>
+                <span className="h-3 w-3 bg-rose-500 rounded-full" />
+                <span className="h-3 w-3 bg-amber-500 rounded-full" />
+                <span className="h-3 w-3 bg-emerald-500 rounded-full" />
+                <span className="text-[10px] text-slate-500 font-bold uppercase pl-2">Preview Mode: Dashboard</span>
               </div>
-              <div className="text-[9px] uppercase font-bold tracking-wider text-health-cyan bg-health-cyan/5 border border-health-cyan/15 px-2.5 py-1 rounded">Vitals Safe</div>
+              <div className="text-[9px] uppercase font-bold tracking-wider text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded">Vitals Safe</div>
             </div>
 
             {/* Content Mock grids */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {/* Vitals radial index mock */}
-              <div className="glass-panel p-5 rounded-xl flex flex-col items-center justify-center text-center">
-                <span className="text-[8px] uppercase font-bold text-health-textMuted block mb-2 tracking-wider">Health Stability index</span>
+              <div className="glass-panel p-5 rounded-xl border border-slate-200/80 bg-slate-50 flex flex-col items-center justify-center text-center">
+                <span className="text-[8px] uppercase font-bold text-slate-500 block mb-2 tracking-wider">Health Stability index</span>
                 <div className="relative h-28 w-28 flex items-center justify-center my-1">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.03)" strokeWidth="6" fill="transparent" />
+                    <circle cx="50" cy="50" r="40" stroke="#E2E8F0" strokeWidth="6" fill="transparent" />
                     <circle cx="50" cy="50" r="40" stroke="#06B6D4" strokeWidth="6" fill="transparent" strokeDasharray="251" strokeDashoffset="50" strokeLinecap="round" />
                   </svg>
                   <div className="absolute flex flex-col items-center">
-                    <span className="text-xl font-bold font-display">82</span>
-                    <span className="text-[8px] text-health-textMuted uppercase font-semibold">Stability</span>
+                    <span className="text-xl font-bold font-display text-slate-900">82</span>
+                    <span className="text-[8px] text-slate-500 uppercase font-semibold">Stability</span>
                   </div>
                 </div>
-                <span className="text-[10px] font-semibold text-white/90 mt-2">Optimal Vitals Range</span>
+                <span className="text-[10px] font-semibold text-slate-800 mt-2">Optimal Vitals Range</span>
               </div>
 
               {/* Weekly summary mock */}
-              <div className="glass-panel p-5 rounded-xl col-span-2 space-y-4">
-                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                  <span className="text-[8px] uppercase font-bold text-health-textMuted tracking-wider">Weekly AI Diagnostic Summary</span>
-                  <span className="text-[8px] text-health-emerald font-bold">Stable status</span>
+              <div className="glass-panel p-5 rounded-xl border border-slate-200/80 bg-slate-50 col-span-2 space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
+                  <span className="text-[8px] uppercase font-bold text-slate-500 tracking-wider">Weekly AI Diagnostic Summary</span>
+                  <span className="text-[8px] text-emerald-600 font-bold">Stable status</span>
                 </div>
-                <p className="text-[11px] font-light text-health-textMuted leading-relaxed">
+                <p className="text-[11px] font-light text-slate-600 leading-relaxed">
                   "Patient cardiovascular metrics are balanced. Sleep registers at 7.2 hours (+12% improvement), steps aggregate at 8,200 daily. Suggested target: maintain active low-sodium DASH consumption and control daily stress levels."
                 </p>
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="p-2 rounded bg-white/5 border border-white/5 text-center text-[10px]">
-                    <span className="text-health-rose font-bold block">120/80</span>
-                    <span className="text-[8px] text-health-textMuted block">BP mmHg</span>
+                  <div className="p-2 rounded bg-white border border-slate-200 text-center text-[10px]">
+                    <span className="text-rose-600 font-bold block">120/80</span>
+                    <span className="text-[8px] text-slate-500 block">BP mmHg</span>
                   </div>
-                  <div className="p-2 rounded bg-white/5 border border-white/5 text-center text-[10px]">
-                    <span className="text-health-blue font-bold block">72 bpm</span>
-                    <span className="text-[8px] text-health-textMuted block">Pulse</span>
+                  <div className="p-2 rounded bg-white border border-slate-200 text-center text-[10px]">
+                    <span className="text-blue-600 font-bold block">72 bpm</span>
+                    <span className="text-[8px] text-slate-500 block">Pulse</span>
                   </div>
-                  <div className="p-2 rounded bg-white/5 border border-white/5 text-center text-[10px]">
-                    <span className="text-health-cyan font-bold block">8.2k</span>
-                    <span className="text-[8px] text-health-textMuted block">Steps Avg</span>
+                  <div className="p-2 rounded bg-white border border-slate-200 text-center text-[10px]">
+                    <span className="text-cyan-600 font-bold block">8.2k</span>
+                    <span className="text-[8px] text-slate-500 block">Steps Avg</span>
                   </div>
                 </div>
               </div>
@@ -537,91 +536,91 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Decoupled Cloud Architecture Diagram with glowing 3D cards tilt! */}
-      <section id="architecture" className="py-24 relative overflow-hidden bg-black/10">
+      {/* Decoupled Cloud Architecture Diagram */}
+      <section id="architecture" className="py-24 relative overflow-hidden bg-slate-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-2xl sm:text-3xl font-display font-extrabold mb-4">Enterprise Decoupled Cloud Architecture</h2>
-            <p className="text-xs text-health-textMuted max-w-2xl mx-auto font-light leading-relaxed">
+            <h2 className="text-2xl sm:text-3xl font-display font-extrabold mb-4 text-slate-900">Enterprise Decoupled Cloud Architecture</h2>
+            <p className="text-xs text-slate-600 max-w-2xl mx-auto font-light leading-relaxed">
               Decoupled cloud architecture engineered from scratch to maintain clean segregation of concerns across API modules. Hover cards to tilt them in 3D.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative" style={{ perspective: 1000 }}>
             {/* Vector Connector Lines Mock */}
-            <div className="absolute top-1/2 left-1/4 right-1/4 h-0.5 border-t-2 border-dashed border-white/5 pointer-events-none hidden md:block z-0" />
+            <div className="absolute top-1/2 left-1/4 right-1/4 h-0.5 border-t-2 border-dashed border-slate-200 pointer-events-none hidden md:block z-0" />
 
             {/* Card 1 */}
             <motion.div 
               whileHover={{ rotateY: 10, rotateX: -5, scale: 1.02 }}
               style={{ transformStyle: 'preserve-3d' }}
-              className="glass-panel p-6 rounded-2xl border-white/5 hover:border-health-blue/40 transition-all z-10 flex flex-col justify-between cursor-pointer"
+              className="glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 hover:border-blue-300 transition-all z-10 flex flex-col justify-between cursor-pointer shadow-sm"
             >
               <div>
-                <div className="h-10 w-10 rounded-xl bg-health-blue/10 flex items-center justify-center mb-5 text-health-blue shadow-glow-blue">
+                <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center mb-5 text-blue-600 border border-blue-100">
                   <Layers className="h-5 w-5" />
                 </div>
-                <h4 className="font-display font-bold text-sm mb-2 text-white">React 19 Vite Web App</h4>
-                <p className="text-[11px] text-health-textMuted leading-relaxed font-light">
+                <h4 className="font-display font-bold text-sm mb-2 text-slate-900">React 19 Vite Web App</h4>
+                <p className="text-[11px] text-slate-600 leading-relaxed font-light">
                   Premium glassmorphic client frontend. Deploys to Vercel, implementing strict route splitting, custom CSS spotlight overlays, and Zustand stores.
                 </p>
               </div>
-              <span className="text-[9px] uppercase font-bold text-health-blue mt-4 block">UI Presentation Layer</span>
+              <span className="text-[9px] uppercase font-bold text-blue-600 mt-4 block">UI Presentation Layer</span>
             </motion.div>
 
             {/* Card 2 */}
             <motion.div 
               whileHover={{ rotateY: 10, rotateX: -5, scale: 1.02 }}
               style={{ transformStyle: 'preserve-3d' }}
-              className="glass-panel p-6 rounded-2xl border-white/5 hover:border-health-cyan/40 transition-all z-10 flex flex-col justify-between cursor-pointer"
+              className="glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 hover:border-cyan-300 transition-all z-10 flex flex-col justify-between cursor-pointer shadow-sm"
             >
               <div>
-                <div className="h-10 w-10 rounded-xl bg-health-cyan/10 flex items-center justify-center mb-5 text-health-cyan shadow-glow">
+                <div className="h-10 w-10 rounded-xl bg-cyan-50 flex items-center justify-center mb-5 text-cyan-600 border border-cyan-100">
                   <Activity className="h-5 w-5" />
                 </div>
-                <h4 className="font-display font-bold text-sm mb-2 text-white">Express Gateway REST API</h4>
-                <p className="text-[11px] text-health-textMuted leading-relaxed font-light">
+                <h4 className="font-display font-bold text-sm mb-2 text-slate-900">Express Gateway REST API</h4>
+                <p className="text-[11px] text-slate-600 leading-relaxed font-light">
                   Secured REST API gateway. Runs JWT credential audits, rate-limiting rules, Overpass OSM nearby queries, and multimodal document parsing.
                 </p>
               </div>
-              <span className="text-[9px] uppercase font-bold text-health-cyan mt-4 block">Secure Router Node</span>
+              <span className="text-[9px] uppercase font-bold text-cyan-600 mt-4 block">Secure Router Node</span>
             </motion.div>
 
             {/* Card 3 */}
             <motion.div 
               whileHover={{ rotateY: 10, rotateX: -5, scale: 1.02 }}
               style={{ transformStyle: 'preserve-3d' }}
-              className="glass-panel p-6 rounded-2xl border-white/5 hover:border-health-emerald/40 transition-all z-10 flex flex-col justify-between cursor-pointer"
+              className="glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 hover:border-emerald-300 transition-all z-10 flex flex-col justify-between cursor-pointer shadow-sm"
             >
               <div>
-                <div className="h-10 w-10 rounded-xl bg-health-emerald/10 flex items-center justify-center mb-5 text-health-emerald shadow-glow-emerald">
+                <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center mb-5 text-emerald-600 border border-emerald-100">
                   <Brain className="h-5 w-5" />
                 </div>
-                <h4 className="font-display font-bold text-sm mb-2 text-white">FastAPI AI Predictor</h4>
-                <p className="text-[11px] text-health-textMuted leading-relaxed font-light">
+                <h4 className="font-display font-bold text-sm mb-2 text-slate-900">FastAPI AI Predictor</h4>
+                <p className="text-[11px] text-slate-600 leading-relaxed font-light">
                   Microservice comparing XGBoost/RF ROC-AUC folds. Choose champions and export SHAP attributions dynamically via uvicorn nodes.
                 </p>
               </div>
-              <span className="text-[9px] uppercase font-bold text-health-emerald mt-4 block">Machine Learning Core</span>
+              <span className="text-[9px] uppercase font-bold text-emerald-600 mt-4 block">Machine Learning Core</span>
             </motion.div>
           </div>
         </div>
       </section>
 
       {/* AI Orchestrator Pipeline Section */}
-      <section id="ai-pipeline" className="py-20 bg-black/20 border-t border-white/5">
+      <section id="ai-pipeline" className="py-20 bg-slate-100/50 border-t border-slate-200/80">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-display font-extrabold mb-4">HridyaAI Orchestrator Pipeline</h2>
-            <p className="text-xs text-health-textMuted max-w-2xl mx-auto font-light leading-relaxed">
+            <h2 className="text-2xl sm:text-3xl font-display font-extrabold mb-4 text-slate-900">HridyaAI Orchestrator Pipeline</h2>
+            <p className="text-xs text-slate-600 max-w-2xl mx-auto font-light leading-relaxed">
               Decoupled step-by-step pipeline orchestrating patient telemetry, machine learning predictions, explainable SHAP weights, medical journal search, and interactive digital twin rendering.
             </p>
           </div>
           <div className="max-w-5xl mx-auto">
             <Suspense fallback={
               <div className="h-48 flex flex-col items-center justify-center space-y-3">
-                <Loader2 className="h-8 w-8 text-health-cyan animate-spin" />
-                <p className="text-[10px] text-health-textMuted uppercase font-bold tracking-widest">Loading AI Pipeline Visualizer...</p>
+                <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Loading AI Pipeline Visualizer...</p>
               </div>
             }>
               <AIArchitecture />
@@ -631,35 +630,35 @@ export default function LandingPage() {
       </section>
 
       {/* Patient Testimonials */}
-      <section id="testimonials" className="py-20 bg-health-dark border-t border-white/5">
+      <section id="testimonials" className="py-20 bg-white border-t border-slate-200/80">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-2xl font-display font-extrabold tracking-tight">Trusted by Medical Educators & Developers</h2>
+            <h2 className="text-2xl font-display font-extrabold tracking-tight text-slate-900">Trusted by Medical Educators & Developers</h2>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div className="glass-panel p-6 rounded-xl relative">
-              <p className="text-xs text-health-textMuted font-light italic leading-relaxed mb-6">
+            <div className="glass-panel p-6 rounded-xl relative border border-slate-200/80 bg-slate-50 shadow-xs">
+              <p className="text-xs text-slate-600 font-light italic leading-relaxed mb-6">
                 "HridyaDarpan represents a major project execution. The integration of SHAP game-theoretic diagrams and the Overpass OpenStreetMap nearby hospital finder completely eliminates boilerplate templates. Highly polished."
               </p>
               <div className="flex items-center space-x-3">
-                <div className="h-8 w-8 rounded-full bg-health-blue/20 flex items-center justify-center text-health-blue font-bold text-xs">P</div>
+                <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs border border-blue-200">P</div>
                 <div>
-                  <h5 className="font-semibold text-xs text-white/95">Prof. Arthur Pendelton</h5>
-                  <span className="text-[9px] text-health-textMuted">Dept of Cardiology & Software Engineering</span>
+                  <h5 className="font-semibold text-xs text-slate-900">Prof. Arthur Pendelton</h5>
+                  <span className="text-[9px] text-slate-500">Dept of Cardiology & Software Engineering</span>
                 </div>
               </div>
             </div>
 
-            <div className="glass-panel p-6 rounded-xl relative">
-              <p className="text-xs text-health-textMuted font-light italic leading-relaxed mb-6">
+            <div className="glass-panel p-6 rounded-xl relative border border-slate-200/80 bg-slate-50 shadow-xs">
+              <p className="text-xs text-slate-600 font-light italic leading-relaxed mb-6">
                 "Consultations with HridyaAI feel responsive and support memory. The model remembers past reports and adjusts diet plans dynamically based on blood sugar levels. A stunning SaaS major project."
               </p>
               <div className="flex items-center space-x-3">
-                <div className="h-8 w-8 rounded-full bg-health-cyan/20 flex items-center justify-center text-health-cyan font-bold text-xs">M</div>
+                <div className="h-8 w-8 rounded-full bg-cyan-50 flex items-center justify-center text-cyan-600 font-bold text-xs border border-cyan-200">M</div>
                 <div>
-                  <h5 className="font-semibold text-xs text-white/95">Dr. Melissa Vance, MD</h5>
-                  <span className="text-[9px] text-health-textMuted">Clinical AI Integrator</span>
+                  <h5 className="font-semibold text-xs text-slate-900">Dr. Melissa Vance, MD</h5>
+                  <span className="text-[9px] text-slate-500">Clinical AI Integrator</span>
                 </div>
               </div>
             </div>
@@ -668,23 +667,23 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ Accordions */}
-      <section id="faq" className="py-20 border-t border-white/5">
+      <section id="faq" className="py-20 border-t border-slate-200/80 bg-slate-50">
         <div className="max-w-3xl mx-auto px-6">
           <div className="text-center mb-12">
-            <h2 className="text-2xl font-display font-extrabold tracking-tight">Frequently Asked Questions</h2>
+            <h2 className="text-2xl font-display font-extrabold tracking-tight text-slate-900">Frequently Asked Questions</h2>
           </div>
           <div className="space-y-4">
             {faqs.map((faq, idx) => (
-              <div key={idx} className="glass-panel rounded-xl overflow-hidden border-white/5">
+              <div key={idx} className="glass-panel rounded-xl overflow-hidden border border-slate-200/80 bg-white shadow-xs">
                 <button
                   onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
                   className="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none"
                 >
-                  <span className="text-xs font-semibold">{faq.q}</span>
-                  <ChevronDown className={`h-4.5 w-4.5 text-health-textMuted transition-transform ${activeFaq === idx ? 'rotate-180' : ''}`} />
+                  <span className="text-xs font-semibold text-slate-900">{faq.q}</span>
+                  <ChevronDown className={`h-4.5 w-4.5 text-slate-400 transition-transform ${activeFaq === idx ? 'rotate-180' : ''}`} />
                 </button>
                 {activeFaq === idx && (
-                  <div className="px-6 pb-5 pt-1 text-[11px] text-health-textMuted leading-relaxed font-light border-t border-white/5">
+                  <div className="px-6 pb-5 pt-1 text-[11px] text-slate-600 leading-relaxed font-light border-t border-slate-100">
                     {faq.a}
                   </div>
                 )}
@@ -695,16 +694,16 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="glass-panel border-t border-white/5 py-12 px-6 mt-auto text-center text-health-textMuted text-xs z-10">
+      <footer className="glass-panel border-t border-slate-200/80 bg-white py-12 px-6 mt-auto text-center text-slate-500 text-xs z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
           <div className="flex items-center space-x-2">
-            <Heart className="h-4 w-4 text-health-rose" />
-            <span className="font-display font-bold text-white tracking-wide">HridyaDarpan</span>
+            <Heart className="h-4 w-4 text-rose-500" />
+            <span className="font-display font-bold text-slate-900 tracking-wide">HridayaDarpana</span>
           </div>
-          <p>© 2026 HridyaDarpan Enterprise SaaS. All rights reserved.</p>
+          <p>© 2026 HridayaDarpana Enterprise SaaS. All rights reserved.</p>
           <div className="flex space-x-6">
-            <Link to="/login" className="hover:text-white transition-colors">Login</Link>
-            <Link to="/register" className="hover:text-white transition-colors">Register</Link>
+            <Link to="/login" className="hover:text-slate-900 transition-colors">Login</Link>
+            <Link to="/register" className="hover:text-slate-900 transition-colors">Register</Link>
           </div>
         </div>
       </footer>

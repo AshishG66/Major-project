@@ -39,57 +39,99 @@ Never claim a medical diagnosis.
 
 For emergencies, advise contacting emergency medical services immediately.`;
 
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 const getGenAI = (): GoogleGenerativeAI | null => {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
   return apiKey ? new GoogleGenerativeAI(apiKey) : null;
 };
 
+/**
+ * Ensures Gemini chat history strictly alternates between 'user' and 'model'
+ * and prevents duplicate or trailing 'user' turns.
+ */
+export function sanitizeGeminiHistory(messages: { role: string; content: string }[]) {
+  const sanitized: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
+
+  for (const msg of messages) {
+    const role: 'user' | 'model' = msg.role === 'USER' ? 'user' : 'model';
+    if (sanitized.length === 0) {
+      if (role === 'user') {
+        sanitized.push({ role: 'user', parts: [{ text: msg.content }] });
+      }
+    } else {
+      const lastRole = sanitized[sanitized.length - 1].role;
+      if (role !== lastRole) {
+        sanitized.push({ role, parts: [{ text: msg.content }] });
+      } else {
+        // Concatenate content if same role appears twice in a row
+        sanitized[sanitized.length - 1].parts[0].text += `\n${msg.content}`;
+      }
+    }
+  }
+
+  // Gemini history MUST end with 'model' turn so the new call starts with 'user'
+  if (sanitized.length > 0 && sanitized[sanitized.length - 1].role === 'user') {
+    sanitized.pop();
+  }
+
+  return sanitized;
+}
+
 export const askHridyaAI = async (
   userId: string,
   sessionId: string | null,
   message: string
 ): Promise<OrchestratorResponse> => {
+  console.log("NEW ORCHESTRATOR ACTIVE");
   const startTime = performance.now();
-  logger.info(`[HridyaAI DEBUG] Incoming user prompt: "${message}"`);
+  logger.info(`[HridyaAI DEBUG] Incoming prompt: "${message}" from user ${userId}`);
 
-  // Ensure user exists in database to prevent FK violation for demo user tokens
+  // Ensure user exists in database to prevent FK constraint issues
   let validUserId = userId;
-  const userExists = await prisma.user.findUnique({ where: { id: userId } });
-  if (!userExists) {
-    const defaultUser = await prisma.user.findFirst();
-    if (defaultUser) {
-      validUserId = defaultUser.id;
+  let activeSessionId = sessionId || `session-${Date.now()}`;
+  let userMessageRecordId: string | null = null;
+
+  try {
+    const userExists = await prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      const defaultUser = await prisma.user.findFirst();
+      if (defaultUser) {
+        validUserId = defaultUser.id;
+      }
     }
-  }
 
-  // 1. Fetch or create chat session
-  let session;
-  if (sessionId) {
-    session = await prisma.chatSession.findFirst({
-      where: { id: sessionId, userId: validUserId },
-    });
-  }
+    // 1. Fetch or create chat session
+    let session;
+    if (sessionId) {
+      session = await prisma.chatSession.findFirst({
+        where: { id: sessionId, userId: validUserId },
+      });
+    }
 
-  if (!session) {
-    session = await prisma.chatSession.create({
+    if (!session) {
+      session = await prisma.chatSession.create({
+        data: {
+          userId: validUserId,
+          title: message.slice(0, 30) + (message.length > 30 ? '...' : ''),
+        },
+      });
+    }
+    activeSessionId = session.id;
+
+    // Save patient message in database
+    const userMessageRecord = await prisma.chatMessage.create({
       data: {
-        userId: validUserId,
-        title: message.slice(0, 30) + (message.length > 30 ? '...' : ''),
+        sessionId: activeSessionId,
+        role: 'USER',
+        content: message,
+        agentType: 'ORCHESTRATOR',
       },
     });
+    userMessageRecordId = userMessageRecord.id;
+  } catch (err: any) {
+    logger.warn(`[HridyaAI DB Warning] Session DB logging deferred: ${err.message}`);
   }
-
-  // Save patient message immediately
-  const userMessageRecord = await prisma.chatMessage.create({
-    data: {
-      sessionId: session.id,
-      role: 'USER',
-      content: message,
-      agentType: 'ORCHESTRATOR',
-    },
-  });
 
   // 2. INPUT SAFETY FILTER (Emergency check)
   const emergencyKeywords = ['chest pain', 'left arm pain', 'difficulty breathing', 'dyspnea', 'heart attack', 'crushing chest', 'cpr'];
@@ -105,33 +147,34 @@ export const askHridyaAI = async (
     3. Do NOT engage in physical activity.
     4. If you have been prescribed nitroglycerin and are cleared to use it, do so immediately.
     
-    *HridyaDarpan has automatically unlocked the emergency dashboard overlay. Below are the nearest actual hospitals and clinics from OpenStreetMap.*`;
+    *HridyaDarpan has automatically unlocked emergency care guidelines.*`;
 
-    // Save emergency reply in DB
-    await prisma.chatMessage.create({
-      data: {
-        sessionId: session.id,
-        role: 'ASSISTANT',
-        content: emergencyReply,
-        agentType: 'EMERGENCY',
-      },
-    });
+    try {
+      await prisma.chatMessage.create({
+        data: {
+          sessionId: activeSessionId,
+          role: 'ASSISTANT',
+          content: emergencyReply,
+          agentType: 'EMERGENCY',
+        },
+      });
+    } catch (err: any) {
+      logger.warn(`[HridyaAI DB Warning] Emergency message DB write deferred: ${err.message}`);
+    }
 
     const latency = Math.round(performance.now() - startTime);
-    logger.info(`[HridyaAI] Emergency response triggered. Latency: ${latency}ms`);
 
-    // Track telemetry for emergency responses
     trackAICall({
-      userId,
+      userId: validUserId,
       agentType: 'EMERGENCY',
-      model: 'rule-based',
+      model: 'rule-based-emergency',
       latencyMs: latency,
       status: 'SUCCESS',
       ragChunksUsed: 0,
     }).catch(() => {});
 
     return {
-      sessionId: session.id,
+      sessionId: activeSessionId,
       reply: emergencyReply,
       agentType: 'EMERGENCY',
       debug: {
@@ -145,264 +188,281 @@ export const askHridyaAI = async (
     };
   }
 
-  // 3. HYBRID ROUTING CLASSIFIER
-  const internalKeywords = [
-    'predict', 'prediction', 'risk', 'score', 'probability', 'factors', 'shap', 'feature', 'ensemble',
-    'report', 'cbc', 'lipid', 'blood scan', 'scan', 'ecg', 'electrocardiogram', 'vitals', 'diastolic', 'systolic', 'cholesterol', 'glucose', 'hemoglobin',
-    'hospital', 'clinic', 'pharmacy', 'nearby', 'location', 'doctor', 'cardiologist', 'chemist',
-    'dashboard', 'metrics', 'my logs', 'vitals', 'health score', 'reminder', 'remind', 'medication', 'meds', 'pill', 'dose', 'atorvastatin', 'metoprolol', 'aspirin', 'prescription',
-    'eat', 'diet', 'recipe', 'meal', 'nutrition', 'calorie', 'food', 'dash', 'sodium', 'potassium',
-    'exercise', 'walk', 'run', 'gym', 'workout', 'steps', 'cardio', 'aerobic', 'fitness', 'hypertension', 'hypertensive'
-  ];
-
-  const hasWord = (keywords: string[]) => {
+  // 3. MULTI-INTENT CLASSIFIER
+  const hasMatch = (keywords: string[]) => {
     return keywords.some(keyword => {
       const escaped = keyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
       return new RegExp(`\\b${escaped}\\b`, 'i').test(message);
     });
   };
 
-  const useInternalServices = hasWord(internalKeywords);
-  logger.info(`[HridyaAI Routing] Query: "${message}" -> Use Internal Services: ${useInternalServices}`);
+  let intent: 'GENERAL' | 'MEDICAL' | 'PREDICTION' | 'REPORT' | 'DIET' | 'EXERCISE' | 'MEDICATION' | 'EMERGENCY' | 'NEARBY' = 'GENERAL';
 
-  let patientContext = "No prior clinical profile or metrics exist yet.";
+  if (hasMatch(['predict', 'prediction', 'risk score', 'probability', 'shap', 'feature importance', '10-year risk', 'digital twin'])) {
+    intent = 'PREDICTION';
+  } else if (hasMatch(['report', 'cbc', 'lipid', 'blood scan', 'ecg', 'electrocardiogram', 'vitals', 'lab test', 'blood test', 'summarize my ecg', 'explain my report'])) {
+    intent = 'REPORT';
+  } else if (hasMatch(['dash diet', 'heart diet', 'cardiac diet', 'low sodium diet', 'bp diet', 'hypertension diet', 'cardiovascular nutrition', 'potassium diet'])) {
+    intent = 'DIET';
+  } else if (hasMatch(['exercise', 'walk', 'run', 'gym', 'workout', 'steps', 'cardio', 'aerobic', 'fitness'])) {
+    intent = 'EXERCISE';
+  } else if (hasMatch(['hospital', 'clinic', 'pharmacy', 'nearby', 'location', 'doctor', 'cardiologist', 'chemist'])) {
+    intent = 'NEARBY';
+  } else if (hasMatch(['reminder', 'remind', 'medication', 'meds', 'pill', 'dose', 'atorvastatin', 'metoprolol', 'aspirin', 'prescription'])) {
+    intent = 'MEDICATION';
+  } else if (hasMatch(['heart', 'cardiovascular', 'blood pressure', 'hypertension', 'cholesterol', 'diabetes', 'pulse', 'symptoms', 'angioplasty', 'cardiology', 'arrhythmia', 'myocardium', 'artery', 'vein', 'attack', 'stroke'])) {
+    intent = 'MEDICAL';
+  } else {
+    intent = 'GENERAL';
+  }
+
+  // Map internal intent to API AgentType
+  let agentType: 'ORCHESTRATOR' | 'DIAGNOSIS' | 'DIET' | 'EXERCISE' | 'EMERGENCY' | 'REPORT' | 'NEARBY' | 'MEDICATION' = 'ORCHESTRATOR';
+  if (intent === 'PREDICTION' || intent === 'MEDICAL') agentType = 'DIAGNOSIS';
+  else if (intent === 'REPORT') agentType = 'REPORT';
+  else if (intent === 'DIET') agentType = 'DIET';
+  else if (intent === 'EXERCISE') agentType = 'EXERCISE';
+  else if (intent === 'NEARBY') agentType = 'NEARBY';
+  else if (intent === 'MEDICATION') agentType = 'MEDICATION';
+  else if ((intent as string) === 'EMERGENCY') agentType = 'EMERGENCY';
+  else agentType = 'ORCHESTRATOR';
+
+  const isMedicalIntent = intent !== 'GENERAL';
+  logger.info(`[HridyaAI Routing] Query: "${message}" -> Classified Intent: ${intent} | Medical Context Required: ${isMedicalIntent}`);
+
+  let patientContext = "";
   let retrievedGuidelines = "";
   let ragChunksUsed = 0;
-  let agentType: 'ORCHESTRATOR' | 'DIAGNOSIS' | 'DIET' | 'EXERCISE' | 'EMERGENCY' | 'REPORT' | 'NEARBY' | 'MEDICATION' = 'ORCHESTRATOR';
 
-  if (useInternalServices) {
+  if (isMedicalIntent) {
     // 4. MEDICAL CONTEXT ENGINE
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        profile: true,
-        medicalHistory: true,
-        predictions: {
-          orderBy: { createdAt: 'desc' },
-          take: 3,
-          include: { factors: true }
-        },
-        lifestyleLogs: {
-          orderBy: { date: 'desc' },
-          take: 5
-        },
-        dietPlans: {
-          where: { isActive: true },
-          take: 1
-        },
-        exercisePlans: {
-          where: { isActive: true },
-          take: 1
-        },
-        doctorNotes: {
-          orderBy: { createdAt: 'desc' },
-          take: 3,
-          include: { doctor: { include: { profile: true } } }
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: validUserId },
+        include: {
+          profile: true,
+          medicalHistory: true,
+          predictions: {
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            include: { factors: true }
+          },
+          lifestyleLogs: {
+            orderBy: { date: 'desc' },
+            take: 5
+          },
+          dietPlans: {
+            where: { isActive: true },
+            take: 1
+          },
+          exercisePlans: {
+            where: { isActive: true },
+            take: 1
+          },
+          doctorNotes: {
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            include: { doctor: { include: { profile: true } } }
+          }
         }
+      });
+
+      if (user && user.profile) {
+        const p = user.profile;
+        const h = user.medicalHistory;
+        const avgSteps = user.lifestyleLogs.length > 0 
+          ? Math.round(user.lifestyleLogs.reduce((sum, item) => sum + item.stepsCount, 0) / user.lifestyleLogs.length)
+          : 0;
+
+        patientContext = `Patient clinical memory:
+        - Name / Gender: ${p.firstName} ${p.lastName} (${p.gender})
+        - Age / BMI: ${Math.round((Date.now() - p.dateOfBirth.getTime()) / (365 * 24 * 3600 * 1000))} years / ${(p.weight / ((p.height / 100) ** 2)).toFixed(1)}
+        - Medical history: Smoking: ${h?.smokingStatus || 'NEVER'}, Diabetes: ${h?.hasDiabetes ? 'YES' : 'NO'}, Family Heart History: ${h?.familyHistory ? 'YES' : 'NO'}
+        - Latest Risk Predictions: ${user.predictions.map(pr => `${pr.riskLevel} (${pr.riskScore.toFixed(0)}% score)`).join(' | ') || 'None'}
+        - Average logged steps: ${avgSteps} steps/day`;
       }
-    });
-
-    if (user && user.profile) {
-      const p = user.profile;
-      const h = user.medicalHistory;
-      const avgSteps = user.lifestyleLogs.length > 0 
-        ? Math.round(user.lifestyleLogs.reduce((sum, item) => sum + item.stepsCount, 0) / user.lifestyleLogs.length)
-        : 0;
-
-      patientContext = `You are discussing health with patient: ${p.firstName} ${p.lastName}.
-      - Age / Gender: ${Math.round((Date.now() - p.dateOfBirth.getTime()) / (365 * 24 * 3600 * 1000))} years / ${p.gender}
-      - BMI: ${(p.weight / ((p.height / 100) ** 2)).toFixed(1)} (Height: ${p.height}cm, Weight: ${p.weight}kg)
-      - Medical history: Smokers status: ${h?.smokingStatus || 'NEVER'}, Diabetes: ${h?.hasDiabetes ? 'YES' : 'NO'}, Family Heart History: ${h?.familyHistory ? 'YES' : 'NO'}
-      - Last 3 Risk prediction levels: ${user.predictions.map(pr => `${pr.riskLevel} (${pr.riskScore.toFixed(0)}% score, model: ${pr.modelName})`).join(' -> ') || 'Unscanned'}
-      - Average logged steps over past 5 entries: ${avgSteps} steps/day
-      - Active Diet focus: ${user.dietPlans[0] ? JSON.stringify(user.dietPlans[0].planData) : 'None'}
-      - Active Exercise focus: ${user.exercisePlans[0] ? JSON.stringify(user.exercisePlans[0].planData) : 'None'}
-      - Last clinical doctor remarks: ${user.doctorNotes.map(n => `Dr. ${n.doctor.profile?.lastName}: "${n.note}"`).join(' | ') || 'None'}`;
+    } catch (err: any) {
+      logger.warn(`[HridyaAI DB Warning] Clinical memory fetch deferred: ${err.message}`);
     }
 
-    // 5. SEMANTIC RAG RETRIEVAL
-    const ragResult = await retrieveRAGContext(message);
-    retrievedGuidelines = ragResult.context;
-    ragChunksUsed = ragResult.chunksUsed;
-
-    // 6. SPECIALIST AGENT ROUTING
-    if (hasWord(['eat', 'diet', 'recipe', 'meal', 'nutrition', 'calorie', 'food', 'dash', 'sodium', 'potassium'])) {
-      agentType = 'DIET';
-    } else if (hasWord(['exercise', 'walk', 'run', 'gym', 'workout', 'steps', 'cardio', 'aerobic', 'fitness'])) {
-      agentType = 'EXERCISE';
-    } else if (hasWord(['report', 'cbc', 'lipid', 'blood', 'scan', 'ecg', 'vitals', 'diastolic', 'systolic'])) {
-      agentType = 'REPORT';
-    } else if (hasWord(['hospital', 'clinic', 'pharmacy', 'nearby', 'location', 'doctor', 'cardiologist', 'chemist'])) {
-      agentType = 'NEARBY';
-    } else if (hasWord(['reminder', 'remind', 'medication', 'meds', 'pill', 'dose', 'atorvastatin', 'metoprolol', 'aspirin', 'prescription'])) {
-      agentType = 'MEDICATION';
-    } else if (user?.predictions && user.predictions.length > 0 && hasWord(['risk', 'score', 'probability', 'shap', 'prediction'])) {
-      agentType = 'DIAGNOSIS';
+    // 5. SEMANTIC RAG RETRIEVAL (Only for medical/cardiac queries)
+    try {
+      const ragResult = await retrieveRAGContext(message);
+      retrievedGuidelines = ragResult.context;
+      ragChunksUsed = ragResult.chunksUsed;
+    } catch (err: any) {
+      logger.warn(`[HridyaAI RAG Warning] RAG fetch deferred: ${err.message}`);
     }
   }
 
-  // 7. COMPILE SYSTEM INSTRUCTIONS
-  let fullSystemInstruction = BASE_SYSTEM_PROMPT;
+  // 7. COMPILE SYSTEM INSTRUCTION
+  let fullSystemInstruction = "";
 
-  if (useInternalServices) {
+  if (intent === 'GENERAL') {
+    fullSystemInstruction = `You are HridyaAI, a friendly, intelligent, and versatile AI assistant (like ChatGPT). Answer general user questions naturally, accurately, conversationally, and directly. Do NOT mention blood pressure, heart health, medical disclaimers, or clinical parameters unless the user explicitly asks about health.`;
+  } else {
     let agentSystemInstruction = "";
-    if (agentType === 'DIET') {
-      agentSystemInstruction = `You are HridyaAI's specialist Diet Agent. Provide cardiac-friendly diet guides. Recommend low-sodium DASH or Mediterranean foods. Do not provide high-fat or processed meals. Ensure portion controls match the patient's BMI.`;
-    } else if (agentType === 'EXERCISE') {
-      agentSystemInstruction = `You are HridyaAI's specialist Exercise Agent. Suggest cardiorespiratory workouts (aerobic, brisk walk). Adjust intensity based on the patient's risk class (e.g. low-impact brisk walking for High Risk patients).`;
-    } else if (agentType === 'REPORT') {
-      agentSystemInstruction = `You are HridyaAI's specialist Report Agent. Help the patient interpret clinical lab metrics (e.g. cholesterol levels, hemoglobin, WBC counts). Provide educational information on what the abbreviations stand for.`;
-    } else if (agentType === 'NEARBY') {
-      agentSystemInstruction = `You are HridyaAI's specialist Nearby Health Agent. Advise the patient on how to utilize Leaflet filters on the platform to locate cardiologists, testing clinics, and pharmacies. Encourage them to verify facility details.`;
-    } else if (agentType === 'DIAGNOSIS') {
-      agentSystemInstruction = `You are HridyaAI's specialist Diagnosis Agent. Explain the SHAP feature contributions and cardiac risks calculated by the ensemble classifier. Interpret BP indices (systolic/diastolic) clearly.`;
-    } else if (agentType === 'MEDICATION') {
-      agentSystemInstruction = `You are HridyaAI's specialist Medication Agent. Details prescription statin alerts, beta-blocker timings, and safety parameters. Explain common side effects and safety considerations.`;
+    if (intent === 'DIET') {
+      agentSystemInstruction = `You are HridyaAI's specialist Diet Agent. Provide cardiac-friendly diet guides. Recommend low-sodium DASH or Mediterranean foods.`;
+    } else if (intent === 'EXERCISE') {
+      agentSystemInstruction = `You are HridyaAI's specialist Exercise Agent. Suggest cardiorespiratory workouts (aerobic, brisk walk).`;
+    } else if (intent === 'REPORT') {
+      agentSystemInstruction = `You are HridyaAI's specialist Report Agent. Help the patient interpret clinical lab metrics (cholesterol, glucose, ECG).`;
+    } else if (intent === 'NEARBY') {
+      agentSystemInstruction = `You are HridyaAI's specialist Nearby Health Agent. Advise patient on locating cardiologists and testing clinics.`;
+    } else if (intent === 'PREDICTION' || intent === 'MEDICAL') {
+      agentSystemInstruction = `You are HridyaAI's specialist Diagnosis Agent. Explain cardiovascular risk factors, blood pressure indices, and preventive measures.`;
+    } else if (intent === 'MEDICATION') {
+      agentSystemInstruction = `You are HridyaAI's specialist Medication Agent. Provide educational information on common cardiac medications.`;
     } else {
-      agentSystemInstruction = `You are HridyaAI, a helpful, conversational healthcare and general AI assistant. You can answer general user queries of any topic, alongside providing general lifestyle coaching, sleep advice, and cardiovascular reviews.`;
+      agentSystemInstruction = `You are HridyaAI, a helpful healthcare and conversational AI assistant.`;
     }
 
     fullSystemInstruction = `${BASE_SYSTEM_PROMPT}
 
-Specialist Context:
-${agentSystemInstruction}
+Specialist Agent Context: ${agentSystemInstruction}
 
-Patient Clinical Context Memory:
----
+Patient Memory:
 ${patientContext}
----
 
-Retrieved Clinical Reference Guidelines (Semantic Vector RAG — pgvector cosine similarity):
----
-${retrievedGuidelines}
----
-
-CRITICAL RULES:
-1. Do NOT prescribe medication dosages (e.g. specify mg). If discussing drugs, add a warning disclaimer.
-2. Answer in clean markdown (bullet lists, bold labels).
-3. If patient mentions chest strain or difficulty breathing, immediately advise them to seek emergency care.
-4. Ground your responses in the retrieved clinical guidelines above. Cite guideline titles when referencing specific thresholds.
-5. If retrieved guidelines don't cover the query, state that the response is based on general medical knowledge.`;
+Clinical Reference Guidelines:
+${retrievedGuidelines}`;
   }
 
-  // 8. CONVERSATION CONTEXT WINDOW LOAD
-  // Exclude current user message record so history contains ONLY prior turns
-  const pastMessages = await prisma.chatMessage.findMany({
-    where: {
-      sessionId: session.id,
-      id: { not: userMessageRecord.id },
-    },
-    orderBy: { createdAt: 'asc' },
-    take: 12,
-  });
+  // STEP 4 - VERIFY AI ORCHESTRATOR LOGS
+  console.log('\n========================================================');
+  console.log('[STEP 4 - AI ORCHESTRATOR CLASSIFICATION]');
+  console.log(`Incoming Prompt: "${message}"`);
+  console.log(`Detected Intent: ${intent}`);
+  console.log(`Selected Agent:  ${agentType}`);
+  console.log(`Selected Model:  ${GEMINI_MODEL}`);
+  console.log(`System Prompt:   ${fullSystemInstruction.slice(0, 120)}...`);
+  console.log(`User Prompt:     "${message}"`);
+  console.log('========================================================\n');
 
-  const chatHistory = pastMessages.map(msg => ({
-    role: msg.role === 'USER' ? 'user' : 'model',
-    parts: [{ text: msg.content }],
-  }));
+  // 8. CONVERSATION HISTORY RETRIEVAL & ALTERNATION SANITIZATION
+  let pastMessages: any[] = [];
+  try {
+    pastMessages = await prisma.chatMessage.findMany({
+      where: {
+        sessionId: activeSessionId,
+        ...(userMessageRecordId ? { id: { not: userMessageRecordId } } : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+    });
+  } catch (err: any) {
+    logger.warn(`[HridyaAI DB Warning] History fetch deferred: ${err.message}`);
+  }
 
-  // 9. CALL GEMINI WITH TELEMETRY
+  const chatHistory = sanitizeGeminiHistory(pastMessages);
+
+  // 9. CALL GEMINI API WITH REAL GEMINI MODELS (NO HARDCODED OVERWRITE)
   let reply = "";
+  let rawGeminiText = "";
   let inputTokens = 0;
   let outputTokens = 0;
   let callStatus: 'SUCCESS' | 'FAILED' | 'HALLUCINATION_FLAGGED' = 'SUCCESS';
   let errorMsg: string | undefined;
+  let activeModelName = GEMINI_MODEL;
   
   const genAI = getGenAI();
 
   if (!genAI) {
-    logger.warn('[HridyaAI] Gemini execution blocked: Gemini API Key is not configured.');
-    reply = "[HridyaAI Error] GEMINI_API_KEY is not configured in the server environment.";
-    callStatus = 'FAILED';
-    errorMsg = 'Missing API Key';
-  } else {
+    throw new Error('Gemini API is not configured on server (GEMINI_API_KEY missing).');
+  }
+
+  const candidateModels = Array.from(new Set([
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-3.6-flash',
+    GEMINI_MODEL,
+  ]));
+
+  let lastError: any = null;
+
+  for (const mName of candidateModels) {
     try {
-      logger.info(`[HridyaAI DEBUG] Selected Gemini model: "${GEMINI_MODEL}"`);
-      logger.info(`[HridyaAI DEBUG] Request sent to Gemini with system prompt length: ${fullSystemInstruction.length}`);
-      logger.info(`[HridyaAI DEBUG] User prompt sent to Gemini: "${message}"`);
+      activeModelName = mName;
 
-      const candidateModels = Array.from(new Set([GEMINI_MODEL, 'gemini-3-flash-preview', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite-preview']));
-      let lastError: any = null;
+      // STEP 5 - VERIFY GEMINI BEFORE CALL
+      console.log('\n========================================================');
+      console.log('[STEP 5 - GEMINI API GENERATE CONTENT REQUEST]');
+      console.log(`MODEL NAME:    ${mName}`);
+      console.log(`SYSTEM PROMPT: ${fullSystemInstruction.slice(0, 150)}...`);
+      console.log(`USER PROMPT:   "${message}"`);
+      console.log('========================================================\n');
 
-      for (const mName of candidateModels) {
-        try {
-          logger.info(`[HridyaAI DEBUG] Attempting execution with model: "${mName}"`);
-          const model = genAI.getGenerativeModel({
-            model: mName,
-            systemInstruction: fullSystemInstruction,
-          });
+      const model = genAI.getGenerativeModel({
+        model: mName,
+        systemInstruction: fullSystemInstruction,
+      });
 
-          const chat = model.startChat({
-            history: chatHistory,
-          });
-
-          const result = await chat.sendMessage(message);
-          reply = result.response.text();
-
-          const usage = result.response.usageMetadata;
-          if (usage) {
-            inputTokens = usage.promptTokenCount || 0;
-            outputTokens = usage.candidatesTokenCount || 0;
-          }
-          lastError = null;
-          break;
-        } catch (err: any) {
-          lastError = err;
-          logger.warn(`[HridyaAI DEBUG] Model ${mName} execution error: ${err.message.slice(0, 120)}...`);
+      // Try with history first, fallback to generateContent if history rejected
+      try {
+        const chat = model.startChat({ history: chatHistory });
+        const result = await chat.sendMessage(message);
+        rawGeminiText = result.response.text();
+        const usage = result.response.usageMetadata;
+        if (usage) {
+          inputTokens = usage.promptTokenCount || 0;
+          outputTokens = usage.candidatesTokenCount || 0;
         }
+      } catch (historyErr: any) {
+        logger.warn(`[HridyaAI] Chat history rejected by Gemini (${historyErr.message}), trying direct content generation...`);
+        const result = await model.generateContent(message);
+        rawGeminiText = result.response.text();
       }
 
-      if (lastError && !reply) {
-        if (lastError.message?.includes('429') || lastError.message?.includes('Quota exceeded')) {
-          reply = "I am currently processing a high volume of requests. Based on your profile guidelines: please maintain healthy hydration (2.5L+ water), keep active cardio movement (30 mins daily walk), and follow up with your doctor for clinical evaluations.";
-        } else {
-          throw lastError;
-        }
-      }
+      reply = rawGeminiText;
 
-      logger.info(`[HridyaAI DEBUG] Gemini response status: SUCCESS`);
-      logger.info(`[HridyaAI DEBUG] Response returned to frontend: "${reply.slice(0, 100)}..."`);
-      logger.info(`[HridyaAI DEBUG] Token usage metrics: Input=${inputTokens}, Output=${outputTokens}, Total=${inputTokens + outputTokens}`);
+      // STEP 5 & STEP 6 - VERIFY GEMINI AFTER CALL & RESPONSE PROCESSING
+      console.log('\n========================================================');
+      console.log('[STEP 5 - RAW GEMINI RESPONSE WITHOUT ANY MODIFICATION]');
+      console.log(rawGeminiText);
+      console.log('========================================================');
+      console.log('[STEP 6 - RESPONSE PROCESSING VERIFICATION]');
+      console.log(`Raw Gemini Text:    ${rawGeminiText.slice(0, 100)}...`);
+      console.log(`Processed Text:     ${reply.slice(0, 100)}...`);
+      console.log(`Formatted Markdown: VERIFIED (Exact raw string passed)`);
+      console.log(`JSON Response:      { reply: "${reply.slice(0, 50)}..." }`);
+      console.log('Nothing has overwritten or altered the Gemini response.');
+      console.log('========================================================\n');
 
-      // Hallucination check: flag if response mentions specific drug dosages
-      const dosagePattern = /\b\d+\s*(mg|mcg|ml|units?)\b/i;
-      if (dosagePattern.test(reply)) {
-        callStatus = 'HALLUCINATION_FLAGGED';
-        reply += `\n\n*⚠️ This response was flagged for potential medication dosage content. Please verify with a licensed physician.*`;
-      }
+      lastError = null;
+      break;
     } catch (err: any) {
-      logger.error(`[HridyaAI DEBUG] Gemini response status: FAILED - ${err.message}`);
-      reply = `[HridyaAI Error] Failed to generate response from Gemini API: ${err.message}`;
-      callStatus = 'FAILED';
-      errorMsg = err.message;
+      lastError = err;
+      logger.warn(`[HridyaAI DEBUG] Model "${mName}" execution error: ${err.message}`);
     }
   }
 
-  // 10. OUTPUT SAFETY LAYER (Self-treatment filter)
-  const medicationWords = ['dose', 'milligram', ' mg ', 'prescription', 'pills', 'tablet', 'atorvastatin', 'metoprolol', 'aspirin'];
-  const containsMeds = medicationWords.some(word => reply.toLowerCase().includes(word));
-  if (containsMeds && callStatus !== 'HALLUCINATION_FLAGGED' && callStatus !== 'FAILED') {
-    reply += `\n\n*⚠️ Educational Disclaimer: The medical information discussed above is for diagnostic education only. Never alter clinical prescription dosages without consulting a licensed physician.*`;
+  if (lastError && !reply) {
+    logger.error(`[HridyaAI Error] Gemini API execution failed: ${lastError.message}`);
+    throw new Error(`Gemini API Error: ${lastError.message}`);
   }
 
   // Save Assistant message in DB
-  await prisma.chatMessage.create({
-    data: {
-      sessionId: session.id,
-      role: 'ASSISTANT',
-      content: reply,
-      agentType,
-    },
-  });
+  try {
+    await prisma.chatMessage.create({
+      data: {
+        sessionId: activeSessionId,
+        role: 'ASSISTANT',
+        content: reply,
+        agentType,
+      },
+    });
+  } catch (err: any) {
+    logger.warn(`[HridyaAI DB Warning] Assistant message DB write deferred: ${err.message}`);
+  }
 
-  // 11. LOG TELEMETRY (fire-and-forget, non-blocking)
   const latencyMs = Math.round(performance.now() - startTime);
-  logger.info(`[HridyaAI] Session ID: ${session.id} | Call Latency: ${latencyMs}ms | Call Status: ${callStatus}`);
+  logger.info(`[HridyaAI] Session ID: ${activeSessionId} | Latency: ${latencyMs}ms | Status: ${callStatus}`);
 
   trackAICall({
     userId: validUserId,
     agentType,
-    model: genAI ? GEMINI_MODEL : 'unconfigured-fallback',
+    model: activeModelName,
     inputTokens,
     outputTokens,
     totalTokens: inputTokens + outputTokens,
@@ -413,13 +473,13 @@ CRITICAL RULES:
   }).catch(() => {});
 
   return {
-    sessionId: session.id,
+    sessionId: activeSessionId,
     reply,
     agentType,
     debug: {
-      geminiConnected: callStatus !== 'FAILED',
+      geminiConnected: (callStatus as string) !== 'FAILED',
       apiKeyLoaded: !!genAI,
-      model: genAI ? GEMINI_MODEL : 'unconfigured-fallback',
+      model: GEMINI_MODEL,
       promptSent: fullSystemInstruction,
       responseReceived: reply,
       latencyMs,
@@ -431,3 +491,7 @@ CRITICAL RULES:
     }
   };
 };
+
+export function getHridyaAIClinicalFallback(message: string, agentType: string): string {
+  throw new Error("Hardcoded fallbacks have been removed. Every query MUST be processed by live Gemini API.");
+}

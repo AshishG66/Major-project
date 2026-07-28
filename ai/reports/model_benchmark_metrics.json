@@ -1,0 +1,148 @@
+{
+  "framingham": {
+    "dataset_name": "Framingham Heart Study",
+    "winning_algorithm": "LightGBM",
+    "version": "v2.1_baseline_retained",
+    "status": "production",
+    "model_file": "ai/models/framingham_risk_model.joblib",
+    "decision_threshold": 0.5,
+    "calibration_method": "Uncalibrated Baseline",
+    "imbalance_method": "Random Undersampling",
+    "reason_selected": "Retained Baseline Model (Optuna tuned model scored 0.6021 vs baseline 0.7287)",
+    "rejection_note": "Optuna tuned model rejected due to lower Recall/ROC-AUC score",
+    "metrics": {
+      "accuracy": 0.5533,
+      "precision": 0.036,
+      "recall": 1.0,
+      "f1_score": 0.0694,
+      "roc_auc": 0.7566,
+      "false_negative_rate": 0.0
+    },
+    "best_hyperparameters": {
+      "n_estimators": 150,
+      "learning_rate": 0.09101089030192132,
+      "max_depth": 4,
+      "num_leaves": 44,
+      "subsample": 0.9967722580405396,
+      "colsample_bytree": 0.8306712929119487,
+      "reg_alpha": 3.801845462455832,
+      "reg_lambda": 0.07088842561789106,
+      "random_state": 42,
+      "verbose": -1,
+      "n_jobs": -1
+    }
+  },
+  "cardio_disease": {
+    "dataset_name": "Cardiovascular Disease (Kaggle)",
+    "winning_algorithm": "CatBoost",
+    "version": "v2.1_optuna_tuned",
+    "status": "production",
+    "model_file": "ai/models/cardio_lifestyle_model.joblib",
+    "decision_threshold": 0.65,
+    "calibration_method": "Uncalibrated Baseline",
+    "imbalance_method": "Random Undersampling",
+    "reason_selected": "Accepted Optuna Tuned Model (+0.0013 score gain over baseline)",
+    "rejection_note": "Baseline model replaced by superior Optuna tuned hyperparameters",
+    "metrics": {
+      "accuracy": 0.694,
+      "precision": 0.0741,
+      "recall": 0.8,
+      "f1_score": 0.1356,
+      "roc_auc": 0.8107,
+      "false_negative_rate": 0.2
+    },
+    "best_hyperparameters": {
+      "iterations": 100,
+      "learning_rate": 0.03371859481214449,
+      "depth": 5,
+      "l2_leaf_reg": 2.1370223550734493,
+      "random_state": 42,
+      "verbose": 0,
+      "thread_count": -1
+    }
+  },
+  "heart_failure": {
+    "dataset_name": "Heart Failure Clinical Records",
+    "winning_algorithm": "XGBoost",
+    "version": "v2.1_baseline_retained",
+    "status": "production",
+    "model_file": "ai/models/heart_failure_model.joblib",
+    "decision_threshold": 0.19,
+    "calibration_method": "Uncalibrated Baseline",
+    "imbalance_method": "Random Undersampling",
+    "reason_selected": "Retained Baseline Model (Optuna tuned model scored 0.7650 vs baseline 0.7783)",
+    "rejection_note": "Optuna tuned model rejected due to lower Recall/ROC-AUC score",
+    "metrics": {
+      "accuracy": 0.724,
+      "precision": 0.4286,
+      "recall": 0.8333,
+      "f1_score": 0.566,
+      "roc_auc": 0.8289,
+      "false_negative_rate": 0.1667
+    },
+    "best_hyperparameters": {
+      "n_estimators": 150,
+      "learning_rate": 0.02815698670091779,
+      "max_depth": 3,
+      "subsample": 0.9642467120093534,
+      "colsample_bytree": 0.9251898002983179,
+      "random_state": 42,
+      "eval_metric": "logloss",
+      "n_jobs": -1
+    }
+  },
+  "stroke_risk": {
+    "dataset_name": "Stroke Prediction Dataset",
+    "winning_algorithm": "Gradient Boosting",
+    "version": "v2.1_optuna_tuned",
+    "status": "production",
+    "model_file": "ai/models/stroke_model.joblib",
+    "decision_threshold": 0.5,
+    "calibration_method": "Uncalibrated Baseline",
+    "imbalance_method": "Random Undersampling",
+    "reason_selected": "Accepted Optuna Tuned Model (+0.0114 score gain over baseline)",
+    "rejection_note": "Baseline model replaced by superior Optuna tuned hyperparameters",
+    "metrics": {
+      "accuracy": 0.8229,
+      "precision": 0.0323,
+      "recall": 0.5,
+      "f1_score": 0.0606,
+      "roc_auc": 0.81,
+      "false_negative_rate": 0.5
+    },
+    "best_hyperparameters": {
+      "n_estimators": 100,
+      "learning_rate": 0.0338549944572086,
+      "max_depth": 3,
+      "subsample": 0.8141045093934082,
+      "random_state": 42
+    }
+  },
+  "ecg_analysis": {
+    "dataset_name": "PhysioNet ECG Features",
+    "winning_algorithm": "Random Forest",
+    "version": "v2.1_baseline_retained",
+    "status": "production",
+    "model_file": "ai/models/ecg_arrhythmia_model.joblib",
+    "decision_threshold": 0.5,
+    "calibration_method": "Uncalibrated (Multiclass)",
+    "imbalance_method": "None",
+    "reason_selected": "Retained Baseline Model (Optuna tuned model scored 0.9950 vs baseline 0.9953)",
+    "rejection_note": "Optuna tuned model rejected due to lower Recall/ROC-AUC score",
+    "metrics": {
+      "accuracy": 0.9933,
+      "precision": 0.9902,
+      "recall": 0.9933,
+      "f1_score": 0.9917,
+      "roc_auc": 0.9999,
+      "false_negative_rate": 0.0067
+    },
+    "best_hyperparameters": {
+      "n_estimators": 200,
+      "max_depth": 10,
+      "min_samples_split": 3,
+      "random_state": 42,
+      "n_jobs": -1
+    }
+  }
+}

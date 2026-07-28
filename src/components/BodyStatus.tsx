@@ -95,9 +95,9 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
   const activeOrgan = organs.find(o => o.id === hoveredPart);
 
   return (
-    <div className="glass-panel p-6 rounded-2xl border-white/5 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden flex-1">
+    <div className="glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden flex-1">
       {/* Absolute badge */}
-      <span className="absolute top-3 left-3 text-[9px] uppercase font-bold text-health-textMuted tracking-wider">
+      <span className="absolute top-3 left-3 text-[9px] uppercase font-bold text-slate-500 tracking-wider">
         Biometric Twin Status Map
       </span>
 
@@ -106,8 +106,8 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
         <svg className="w-full h-full" viewBox="0 0 200 300">
           <defs>
             <linearGradient id="bodyGlow" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(59, 130, 246, 0.08)" />
-              <stop offset="100%" stopColor="rgba(6, 182, 212, 0.01)" />
+              <stop offset="0%" stopColor="rgba(59, 130, 246, 0.12)" />
+              <stop offset="100%" stopColor="rgba(6, 182, 212, 0.03)" />
             </linearGradient>
           </defs>
 
@@ -117,7 +117,7 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
                M100 56 L100 62
                M75 75 C85 62, 115 62, 125 75 C132 85, 142 120, 142 160 C142 165, 137 170, 133 165 C129 160, 126 128, 124 115 C124 125, 126 160, 126 210 C126 215, 121 215, 118 210 L104 150 L100 150 L96 150 L82 210 C79 215, 74 215, 74 210 C74 160, 76 125, 76 115 C74 128, 71 160, 67 165 C63 170, 58 165, 58 160 C58 120, 68 85, 75 75 Z"
             fill="url(#bodyGlow)"
-            stroke="rgba(255, 255, 255, 0.08)"
+            stroke="rgba(148, 163, 184, 0.4)"
             strokeWidth="1.5"
           />
 
@@ -125,7 +125,7 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
           <path
             d="M100 60 L100 120 M100 90 L68 125 M100 90 L132 125 M100 120 L86 180 M100 120 L114 180"
             fill="none"
-            stroke={bp >= 140 ? 'rgba(244,63,94,0.18)' : 'rgba(16,185,129,0.18)'}
+            stroke={bp >= 140 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'}
             strokeWidth="2.5"
             className={hoveredPart === 'blood' ? 'animate-pulse' : ''}
           />
@@ -145,14 +145,14 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
                   cx={organ.cx}
                   cy={organ.cy}
                   r={organ.r + 5}
-                  className={`fill-none stroke-current opacity-20 transition-all duration-300 ${
+                  className={`fill-none stroke-current opacity-30 transition-all duration-300 ${
                     isHovered 
-                      ? (organ.state === 'rose' ? 'text-health-rose animate-ping' :
-                         organ.state === 'amber' ? 'text-health-amber animate-pulse' :
-                         'text-health-emerald animate-pulse')
-                      : (organ.state === 'rose' ? 'text-health-rose' :
-                         organ.state === 'amber' ? 'text-health-amber' :
-                         'text-health-emerald')
+                      ? (organ.state === 'rose' ? 'text-rose-500 animate-ping' :
+                         organ.state === 'amber' ? 'text-amber-500 animate-pulse' :
+                         'text-emerald-500 animate-pulse')
+                      : (organ.state === 'rose' ? 'text-rose-500' :
+                         organ.state === 'amber' ? 'text-amber-500' :
+                         'text-emerald-500')
                   }`}
                   strokeWidth="1"
                 />
@@ -172,7 +172,7 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
       {/* Details Box */}
       <div className="flex-1 flex flex-col justify-between self-stretch py-2 min-w-0">
         <div>
-          <h4 className="text-xs font-semibold text-white/90 mb-2 border-b border-white/5 pb-1">
+          <h4 className="text-xs font-semibold text-slate-800 mb-2 border-b border-slate-100 pb-1">
             Dynamic System Biometrics
           </h4>
 
@@ -187,12 +187,12 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
                   className={`p-2.5 rounded-xl border text-[10px] transition-all cursor-pointer ${
                     isSelected 
                       ? getBorderColorClass(organ.state) + ' border-current scale-[1.02]' 
-                      : 'bg-white/5 border-white/5 hover:bg-white/10'
+                      : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex justify-between items-center font-bold">
-                    <span>{organ.name}</span>
-                    <span className="text-[8px] uppercase px-1.5 py-0.5 rounded bg-black/30">
+                    <span className="text-slate-900">{organ.name}</span>
+                    <span className="text-[8px] uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-800">
                       {organ.state === 'rose' ? 'Strain Alert' : organ.state === 'amber' ? 'Borderline' : 'Ideal'}
                     </span>
                   </div>
@@ -203,8 +203,8 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
         </div>
 
         {/* Dynamic Telemetry Box */}
-        <div className="h-16 mt-4 p-2 rounded-xl bg-black/40 border border-white/5 text-[9px] font-light flex items-start space-x-2">
-          <Info className="h-4.5 w-4.5 text-health-blue shrink-0 mt-0.5" />
+        <div className="h-16 mt-4 p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[9px] font-light flex items-start space-x-2">
+          <Info className="h-4.5 w-4.5 text-blue-600 shrink-0 mt-0.5" />
           <AnimatePresence mode="wait">
             {activeOrgan ? (
               <motion.div
@@ -214,15 +214,15 @@ export default function BodyStatus({ bp, exercise, sleep, stress, heartRate }: B
                 exit={{ opacity: 0, y: -3 }}
                 className="space-y-0.5"
               >
-                <span className="font-bold text-white uppercase block">{activeOrgan.name} telemetry</span>
-                <p className="text-health-textMuted leading-relaxed">{activeOrgan.details}</p>
+                <span className="font-bold text-slate-900 uppercase block">{activeOrgan.name} telemetry</span>
+                <p className="text-slate-600 leading-relaxed">{activeOrgan.details}</p>
               </motion.div>
             ) : (
               <motion.div
                 key="default-telemetry"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-health-textMuted flex items-center h-full italic"
+                className="text-slate-500 flex items-center h-full italic"
               >
                 Hover over specific hotspot nodes on the biometric model twin to verify diagnostic telemetry reviews.
               </motion.div>

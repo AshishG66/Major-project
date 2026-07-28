@@ -39,34 +39,34 @@ export default function AiRecommendationCard({
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-5 rounded-2xl bg-gradient-to-br from-health-cyan/20 via-health-blue/15 to-black/60 border border-health-cyan/40 shadow-glow-blue space-y-4 relative overflow-hidden"
+      className="p-5 rounded-2xl bg-gradient-to-br from-blue-50 via-cyan-50/60 to-white border border-blue-200 shadow-sm space-y-4 relative overflow-hidden text-slate-900"
     >
       {/* Background Ambient Glow */}
-      <div className="absolute -right-12 -top-12 h-36 w-36 bg-health-cyan/15 rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute -right-12 -top-12 h-36 w-36 bg-blue-400/10 rounded-full blur-2xl pointer-events-none" />
 
       {/* Header Badge */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
         <div className="flex items-center space-x-2">
-          <span className="p-1.5 rounded-xl bg-gradient-to-r from-health-cyan to-health-blue text-white shadow-md">
-            <Sparkles className="h-4 w-4 animate-spin-slow" />
+          <span className="p-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-xs">
+            <Sparkles className="h-4 w-4 text-white" />
           </span>
           <div>
-            <h3 className="font-display font-extrabold text-sm text-white flex items-center space-x-1.5">
+            <h3 className="font-display font-extrabold text-sm text-slate-900 flex items-center space-x-1.5">
               <span>Recommended for You</span>
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-health-cyan/20 text-health-cyan border border-health-cyan/30 uppercase tracking-wider font-extrabold">
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wider font-extrabold">
                 HridyaAI Match
               </span>
             </h3>
-            <p className="text-[10px] text-health-textMuted font-light">
+            <p className="text-[10px] text-slate-500 font-light">
               AI-matched optimal cardiac care facility based on risk profile & live proximity.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-1 text-health-amber font-bold text-xs shrink-0 self-start sm:self-center">
-          <Star className="h-4 w-4 fill-health-amber" />
-          <span>{topRecommended.rating}★</span>
-          <span className="text-white/40 text-[10px]">({topRecommended.userRatingsTotal} Google reviews)</span>
+        <div className="flex items-center space-x-1 text-amber-500 font-bold text-xs shrink-0 self-start sm:self-center">
+          <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
+          <span className="text-slate-900 font-extrabold">{topRecommended.rating}★</span>
+          <span className="text-slate-500 text-[10px]">({topRecommended.userRatingsTotal} Google reviews)</span>
         </div>
       </div>
 
@@ -76,45 +76,45 @@ export default function AiRecommendationCard({
         {/* Facility Details */}
         <div className="md:col-span-7 space-y-2">
           <div>
-            <span className="text-[9px] font-extrabold text-health-cyan bg-health-cyan/15 border border-health-cyan/25 px-2 py-0.5 rounded uppercase tracking-wider">
+            <span className="text-[9px] font-extrabold text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded uppercase tracking-wider">
               {topRecommended.type}
             </span>
-            <h4 className="font-display font-extrabold text-base text-white mt-1">{topRecommended.name}</h4>
-            <p className="text-xs text-white/80 font-light flex items-center space-x-1 mt-0.5">
-              <MapPin className="h-3.5 w-3.5 text-health-rose shrink-0" />
+            <h4 className="font-display font-extrabold text-base text-slate-900 mt-1">{topRecommended.name}</h4>
+            <p className="text-xs text-slate-700 font-medium flex items-center space-x-1 mt-0.5">
+              <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0" />
               <span className="truncate">{topRecommended.address}</span>
             </p>
           </div>
 
           <div className="flex items-center space-x-3 text-xs pt-1">
-            <span className="font-extrabold text-health-cyan bg-white/5 border border-white/10 px-2.5 py-1 rounded-lg">
+            <span className="font-extrabold text-blue-700 bg-white border border-blue-200 px-2.5 py-1 rounded-lg shadow-xs">
               📏 {topRecommended.distance}
             </span>
-            <span className="font-semibold text-health-emerald bg-white/5 border border-white/10 px-2.5 py-1 rounded-lg flex items-center space-x-1">
-              <Clock className="h-3 w-3" />
+            <span className="font-semibold text-emerald-700 bg-white border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center space-x-1 shadow-xs">
+              <Clock className="h-3 w-3 text-emerald-600" />
               <span>~{estMins} mins drive</span>
             </span>
           </div>
         </div>
 
         {/* AI Rationale Bullets */}
-        <div className="md:col-span-5 bg-black/40 border border-white/10 rounded-xl p-3 space-y-1.5 text-[10.5px]">
-          <p className="text-[9px] uppercase font-bold text-health-textMuted flex items-center space-x-1">
-            <ShieldCheck className="h-3.5 w-3.5 text-health-emerald" />
+        <div className="md:col-span-5 bg-white border border-blue-200/80 rounded-xl p-3 space-y-1.5 text-[10.5px] shadow-xs">
+          <p className="text-[9px] uppercase font-bold text-slate-500 flex items-center space-x-1">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
             <span>Why HridyaAI Recommends This:</span>
           </p>
           
-          <ul className="space-y-1 text-white/90 font-medium leading-tight">
+          <ul className="space-y-1 text-slate-700 font-medium leading-tight">
             <li className="flex items-center space-x-1.5">
-              <span className="text-health-emerald font-bold">✔</span>
+              <span className="text-emerald-600 font-bold">✔</span>
               <span>Highest cardiac rating nearby ({topRecommended.rating}★)</span>
             </li>
             <li className="flex items-center space-x-1.5">
-              <span className="text-health-emerald font-bold">✔</span>
+              <span className="text-emerald-600 font-bold">✔</span>
               <span>24×7 Emergency Cardiac ICU & Cath Lab</span>
             </li>
             <li className="flex items-center space-x-1.5">
-              <span className="text-health-emerald font-bold">✔</span>
+              <span className="text-emerald-600 font-bold">✔</span>
               <span>Verified Google Places Healthcare Provider</span>
             </li>
           </ul>
@@ -123,21 +123,21 @@ export default function AiRecommendationCard({
       </div>
 
       {/* Action Row */}
-      <div className="flex flex-wrap items-center justify-between pt-2 border-t border-white/10 gap-2">
+      <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-200/80 gap-2">
         <div className="flex items-center space-x-2">
           {topRecommended.phone && (
             <a
               href={`tel:${topRecommended.phone}`}
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl text-white text-xs font-bold uppercase transition-all flex items-center space-x-1.5"
+              className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold uppercase transition-all flex items-center space-x-1.5 shadow-xs"
             >
-              <Phone className="h-3.5 w-3.5 text-health-emerald" />
+              <Phone className="h-3.5 w-3.5 text-emerald-600" />
               <span>Call Facility</span>
             </a>
           )}
 
           <button
             onClick={() => onSelectFacility(topRecommended.id)}
-            className="px-3 py-1.5 border border-health-cyan/30 bg-health-cyan/15 hover:bg-health-cyan/25 rounded-xl text-health-cyan text-xs font-bold uppercase transition-all flex items-center space-x-1"
+            className="px-3 py-1.5 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-xl text-blue-700 text-xs font-bold uppercase transition-all flex items-center space-x-1 shadow-xs"
           >
             <span>Focus Map</span>
           </button>
@@ -146,7 +146,7 @@ export default function AiRecommendationCard({
         <div className="flex space-x-2">
           <button
             onClick={() => onViewDetails(topRecommended.id)}
-            className="px-3.5 py-1.5 border border-white/10 bg-white/5 hover:bg-white/15 text-white text-xs font-bold uppercase rounded-xl transition-all"
+            className="px-3.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase rounded-xl transition-all shadow-xs"
           >
             Details
           </button>
@@ -155,7 +155,7 @@ export default function AiRecommendationCard({
             href={destinationUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-1.5 bg-gradient-to-r from-health-blue to-health-cyan text-white text-xs font-extrabold uppercase rounded-xl hover:shadow-glow flex items-center space-x-1.5 transition-all"
+            className="px-4 py-1.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-xs font-extrabold uppercase rounded-xl hover:from-blue-700 hover:to-blue-600 flex items-center space-x-1.5 transition-all shadow-xs"
           >
             <Navigation className="h-3.5 w-3.5" />
             <span>Get Directions</span>

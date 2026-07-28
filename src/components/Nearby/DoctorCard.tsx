@@ -29,19 +29,19 @@ export default function DoctorCard({
   const getCategoryConfig = () => {
     switch (doctor.categoryKey) {
       case 'emergency':
-        return { icon: Siren, bg: 'bg-health-rose/15', border: 'border-health-rose/30', text: 'text-health-rose', badge: 'bg-health-rose text-white' };
+        return { icon: Siren, bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', badge: 'bg-red-100 text-red-700 border border-red-200' };
       case 'cardiologist':
-        return { icon: Stethoscope, bg: 'bg-health-cyan/15', border: 'border-health-cyan/30', text: 'text-health-cyan', badge: 'bg-health-cyan/20 text-health-cyan' };
+        return { icon: Stethoscope, bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', badge: 'bg-blue-100 text-blue-700 border border-blue-200' };
       case 'hospital':
-        return { icon: Building2, bg: 'bg-health-blue/15', border: 'border-health-blue/30', text: 'text-health-blue', badge: 'bg-health-blue/20 text-health-blue' };
+        return { icon: Building2, bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', badge: 'bg-blue-100 text-blue-700 border border-blue-200' };
       case 'clinic':
-        return { icon: HeartPulse, bg: 'bg-health-violet/15', border: 'border-health-violet/30', text: 'text-health-violet', badge: 'bg-health-violet/20 text-health-violet' };
+        return { icon: HeartPulse, bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-600', badge: 'bg-indigo-100 text-indigo-700 border border-indigo-200' };
       case 'diagnostic':
-        return { icon: Activity, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', badge: 'bg-blue-500/20 text-blue-300' };
+        return { icon: Activity, bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-600', badge: 'bg-cyan-100 text-cyan-700 border border-cyan-200' };
       case 'pharmacy':
-        return { icon: Pill, bg: 'bg-health-amber/15', border: 'border-health-amber/30', text: 'text-health-amber', badge: 'bg-health-amber/20 text-health-amber' };
+        return { icon: Pill, bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-600', badge: 'bg-amber-100 text-amber-700 border border-amber-200' };
       default:
-        return { icon: HeartPulse, bg: 'bg-health-cyan/15', border: 'border-health-cyan/30', text: 'text-health-cyan', badge: 'bg-health-cyan/20 text-health-cyan' };
+        return { icon: HeartPulse, bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', badge: 'bg-blue-100 text-blue-700 border border-blue-200' };
     }
   };
 
@@ -57,8 +57,8 @@ export default function DoctorCard({
       transition={{ duration: 0.2 }}
       className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 relative ${
         isSelected
-          ? 'bg-health-blue/15 border-health-blue shadow-glow-blue ring-1 ring-health-blue/50'
-          : 'bg-white/5 border-white/5 hover:border-white/15 hover:bg-white/10'
+          ? 'bg-blue-50/90 border-blue-500 shadow-sm ring-2 ring-blue-500/20'
+          : 'bg-white border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/80 shadow-xs'
       }`}
     >
       {/* Top Header Row */}
@@ -69,13 +69,13 @@ export default function DoctorCard({
           </div>
 
           <div className="overflow-hidden pr-2">
-            <h4 className="font-display font-bold text-sm text-white truncate">{doctor.name}</h4>
+            <h4 className="font-display font-bold text-sm text-slate-900 truncate">{doctor.name}</h4>
             <div className="flex items-center space-x-2 mt-0.5">
               <span className={`text-[8.5px] font-extrabold uppercase px-2 py-0.5 rounded ${config.badge}`}>
                 {doctor.type}
               </span>
               {isEmergency && (
-                <span className="text-[8px] font-extrabold text-health-rose bg-health-rose/15 border border-health-rose/30 px-1.5 py-0.5 rounded flex items-center space-x-1 uppercase animate-pulse">
+                <span className="text-[8px] font-extrabold text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded flex items-center space-x-1 uppercase animate-pulse">
                   <span>24/7 ER</span>
                 </span>
               )}
@@ -84,53 +84,53 @@ export default function DoctorCard({
         </div>
 
         {/* Distance Badge */}
-        <span className="text-xs font-extrabold text-health-cyan bg-health-cyan/10 border border-health-cyan/20 px-2.5 py-1 rounded-lg shrink-0">
+        <span className="text-xs font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg shrink-0">
           {doctor.distance}
         </span>
       </div>
 
       {/* Detail info rows */}
-      <div className="space-y-1.5 text-[11px] text-health-textMuted font-light">
+      <div className="space-y-1.5 text-[11px] text-slate-600 font-light">
         <div className="flex items-start space-x-1.5">
-          <MapPin className="h-3.5 w-3.5 text-health-rose shrink-0 mt-0.5" />
-          <span className="truncate text-white/80">{doctor.address}</span>
+          <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0 mt-0.5" />
+          <span className="truncate text-slate-700 font-medium">{doctor.address}</span>
         </div>
 
         <div className="flex justify-between items-center pt-0.5">
           <div className="flex items-center space-x-1.5">
-            <span className={`h-2 w-2 rounded-full ${doctor.openNow ? 'bg-health-emerald animate-pulse' : 'bg-health-rose'}`} />
-            <span className="font-semibold text-white/80 text-[10px]">
+            <span className={`h-2 w-2 rounded-full ${doctor.openNow ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+            <span className={`font-semibold text-[10px] ${doctor.openNow ? 'text-emerald-700' : 'text-rose-600'}`}>
               {doctor.openNow ? 'Open Now' : 'Closed'}
             </span>
-            <span className="text-white/30">•</span>
-            <span className="text-xxs text-white/60">{doctor.openingHours}</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-xxs text-slate-500">{doctor.openingHours}</span>
           </div>
           
-          <div className="flex items-center space-x-1 text-health-amber text-[10px]">
-            <Star className="h-3.5 w-3.5 fill-health-amber" />
-            <span className="font-bold text-white">{doctor.rating}</span>
-            <span className="text-white/40">({doctor.userRatingsTotal})</span>
+          <div className="flex items-center space-x-1 text-amber-500 text-[10px]">
+            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+            <span className="font-bold text-slate-900">{doctor.rating}</span>
+            <span className="text-slate-400">({doctor.userRatingsTotal})</span>
           </div>
         </div>
       </div>
 
       {/* Action Buttons Row */}
-      <div className="flex justify-between items-center pt-2.5 border-t border-white/5 gap-1.5 shrink-0">
+      <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 gap-1.5 shrink-0">
         
         {/* Phone Call */}
         {doctor.phone ? (
           <a
             href={`tel:${doctor.phone}`}
             onClick={(e) => e.stopPropagation()}
-            className="px-2.5 py-1.5 border border-white/10 bg-white/5 hover:bg-white/15 rounded-lg text-white text-[10px] font-bold uppercase transition-all flex items-center space-x-1"
+            className="px-2.5 py-1.5 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-700 text-[10px] font-bold uppercase transition-all flex items-center space-x-1 shadow-xs"
           >
-            <Phone className="h-3 w-3 text-health-emerald" />
+            <Phone className="h-3 w-3 text-emerald-600" />
             <span>Call</span>
           </a>
         ) : (
           <button
             disabled
-            className="px-2.5 py-1.5 border border-white/5 bg-white/5 text-white/20 text-[10px] font-bold uppercase rounded-lg flex items-center space-x-1 cursor-not-allowed"
+            className="px-2.5 py-1.5 border border-slate-100 bg-slate-50 text-slate-300 text-[10px] font-bold uppercase rounded-lg flex items-center space-x-1 cursor-not-allowed"
           >
             <Phone className="h-3 w-3" />
             <span>Call</span>
@@ -144,7 +144,7 @@ export default function DoctorCard({
             e.stopPropagation();
             onClick();
           }}
-          className="px-2.5 py-1.5 border border-health-cyan/30 bg-health-cyan/15 hover:bg-health-cyan/25 text-health-cyan text-[10px] font-bold uppercase rounded-lg transition-all flex items-center space-x-1"
+          className="px-2.5 py-1.5 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center space-x-1 shadow-xs"
         >
           <Eye className="h-3 w-3" />
           <span>View Map</span>
@@ -156,7 +156,7 @@ export default function DoctorCard({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="px-2.5 py-1.5 bg-gradient-to-r from-health-blue to-health-cyan text-white text-[10px] font-bold uppercase rounded-lg hover:shadow-glow transition-all flex items-center space-x-1"
+          className="px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-[10px] font-bold uppercase rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all flex items-center space-x-1 shadow-xs"
         >
           <Navigation className="h-3 w-3" />
           <span>Directions</span>
@@ -168,7 +168,7 @@ export default function DoctorCard({
             e.stopPropagation();
             onViewDetails();
           }}
-          className="px-2 py-1.5 border border-white/10 bg-white/5 hover:bg-white/15 text-white/80 hover:text-white text-[10px] font-bold uppercase rounded-lg transition-all"
+          className="px-2 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[10px] font-bold uppercase rounded-lg transition-all shadow-xs"
         >
           Details
         </button>

@@ -7,18 +7,22 @@ interface RequestOptions extends RequestInit {
   body?: any;
 }
 
-async function request(endpoint: string, options: RequestOptions = {}) {
-  // Check if Demo Mode is active (auth and chat endpoints always reach live backend)
+async function request(endpoint: string, options: RequestOptions = {}, isRetry = false): Promise<any> {
   const isDemo = localStorage.getItem('demo_mode') === 'true';
   const isChatEndpoint = endpoint.startsWith('/chat');
   const isAuthEndpoint = endpoint.startsWith('/auth');
-  if (isDemo && !isChatEndpoint && !isAuthEndpoint) {
-    // Artificial latency to keep dashboard loader states realistic
+  const isPredictionEndpoint = endpoint.startsWith('/prediction');
+  const isDashboardEndpoint = endpoint.startsWith('/dashboard');
+
+  if (isDemo && !isChatEndpoint && !isAuthEndpoint && !isPredictionEndpoint && !isDashboardEndpoint) {
     await new Promise((resolve) => setTimeout(resolve, 300));
     return handleDemoRequest(endpoint, options);
   }
 
-  const token = useAuthStore.getState().token;
+  let token = useAuthStore.getState().token;
+  if (!token && (isDemo || isChatEndpoint)) {
+    token = 'demo-token-123';
+  }
   
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
@@ -28,7 +32,7 @@ async function request(endpoint: string, options: RequestOptions = {}) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30000ms connection timeout
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   const config: RequestInit = {
     ...options,
@@ -44,8 +48,29 @@ async function request(endpoint: string, options: RequestOptions = {}) {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
     clearTimeout(timeoutId);
 
-    // Handle session expiration for non-auth endpoints only
-    if (response.status === 401 && !isAuthEndpoint) {
+    if (response.status === 401 && !isAuthEndpoint && token !== 'demo-token-123' && !isRetry) {
+      const { refreshToken, user } = useAuthStore.getState();
+      if (refreshToken) {
+        try {
+          const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken })
+          });
+          
+          if (refreshResponse.ok) {
+            const refreshData = await refreshResponse.json();
+            const newAccessToken = refreshData.accessToken;
+            const newRefreshToken = refreshData.refreshToken;
+            if (newAccessToken && user) {
+              useAuthStore.getState().setAuth(user, newAccessToken, newRefreshToken);
+              return request(endpoint, options, true);
+            }
+          }
+        } catch (e) {
+          // Refresh failed, proceed to handle as normal 401
+        }
+      }
       useAuthStore.getState().clearAuth();
       throw new Error('Session expired. Please log in again.');
     }
@@ -62,18 +87,23 @@ async function request(endpoint: string, options: RequestOptions = {}) {
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout. Please check your connection.');
+    }
     throw error;
   }
 }
 
 export const api = {
-  get: (endpoint: string, options?: Omit<RequestOptions, 'body'>) => 
+  get: (endpoint: string, options?: RequestOptions) => 
     request(endpoint, { ...options, method: 'GET' }),
-    
-  post: (endpoint: string, body?: any, options?: Omit<RequestOptions, 'body'>) => 
+  
+  post: (endpoint: string, body?: any, options?: RequestOptions) => 
     request(endpoint, { ...options, method: 'POST', body }),
-    
-  delete: (endpoint: string, options?: Omit<RequestOptions, 'body'>) => 
+  
+  put: (endpoint: string, body?: any, options?: RequestOptions) => 
+    request(endpoint, { ...options, method: 'PUT', body }),
+  
+  delete: (endpoint: string, options?: RequestOptions) => 
     request(endpoint, { ...options, method: 'DELETE' }),
 };
-

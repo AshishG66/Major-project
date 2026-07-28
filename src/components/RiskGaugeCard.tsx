@@ -1,61 +1,297 @@
-import React from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Loader2, ShieldCheck, AlertTriangle, ShieldAlert, Activity, Info } from 'lucide-react';
 
 interface RiskGaugeCardProps {
   dashLoading: boolean;
-  simulatedScore: number;
-  simulatedRisk: string;
-  needleAngle: number;
+  simulatedScore: number;   // 0–100 risk probability %
+  simulatedRisk: string;    // 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL' | 'UNSCANNED'
+  needleAngle?: number;     // legacy optional prop
 }
 
-const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk, needleAngle }: RiskGaugeCardProps) => {
+const RISK_CONFIG = {
+  LOW:       { label: 'LOW RISK',      color: '#10b981', bg: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-400', icon: ShieldCheck },
+  MODERATE:  { label: 'MODERATE RISK', color: '#f59e0b', bg: 'bg-amber-500/10 text-amber-600 border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-400',     icon: Activity },
+  HIGH:      { label: 'HIGH RISK',     color: '#f97316', bg: 'bg-orange-500/10 text-orange-600 border-orange-500/30 dark:bg-orange-500/20 dark:text-orange-400', icon: AlertTriangle },
+  CRITICAL:  { label: 'CRITICAL RISK', color: '#ef4444', bg: 'bg-rose-500/15 text-rose-600 border-rose-500/40 dark:bg-rose-500/25 dark:text-rose-400 animate-pulse', icon: ShieldAlert },
+  UNSCANNED: { label: 'UNSCANNED',     color: '#94a3b8', bg: 'bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/20 dark:text-slate-400', icon: Activity },
+};
+
+const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGaugeCardProps) => {
+  const riskKey = (simulatedRisk || 'UNSCANNED').toUpperCase() as keyof typeof RISK_CONFIG;
+  const config = RISK_CONFIG[riskKey] ?? RISK_CONFIG.UNSCANNED;
+  const isUnscanned = riskKey === 'UNSCANNED';
+  const clampedScore = Math.max(0, Math.min(100, simulatedScore));
+
+  // Animated Count-Up Number (0% -> target score)
+  const [displayScore, setDisplayScore] = useState(0);
+
+  useEffect(() => {
+    if (isUnscanned) {
+      setDisplayScore(0);
+      return;
+    }
+    let start = 0;
+    const end = Math.round(clampedScore);
+    const duration = 1200;
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(start + (end - start) * easeOut);
+      setDisplayScore(current);
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [clampedScore, isUnscanned]);
+
+  // Target rotation angle from -90deg (0%) to +90deg (100%)
+  const targetRotation = isUnscanned ? -90 : -90 + (clampedScore / 100) * 180;
+
+  // Arc calculations for SVG semi-circle (R=85)
+  const radius = 85;
+  const circumference = Math.PI * radius; // ~267px arc length
+  const activeOffset = circumference - (clampedScore / 100) * circumference;
+
+  // Radial Ticks (11 markers)
+  const ticks = Array.from({ length: 11 }, (_, i) => {
+    const angleDeg = 180 + i * 18;
+    const angleRad = (angleDeg * Math.PI) / 180;
+    const x1 = 100 + 74 * Math.cos(angleRad);
+    const y1 = 102 + 74 * Math.sin(angleRad);
+    const x2 = 100 + 81 * Math.cos(angleRad);
+    const y2 = 102 + 81 * Math.sin(angleRad);
+    return { x1, y1, x2, y2, isMajor: i % 5 === 0 };
+  });
+
+  const IconComp = config.icon;
+
   return (
-    <div className="glass-panel p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden h-[320px]">
-      <span className="text-[9px] text-health-textMuted uppercase font-bold tracking-wider">Risk Classification Gauge</span>
-      
-      <div className="relative h-40 w-full flex items-center justify-center overflow-hidden my-auto">
+    <motion.div
+      whileHover={{ y: -4, boxShadow: '0 25px 30px -5px rgba(0, 0, 0, 0.08), 0 10px 12px -6px rgba(0, 0, 0, 0.02)' }}
+      transition={{ duration: 0.3 }}
+      className="glass-panel p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden bg-white/85 dark:bg-slate-900/85 border border-slate-200/90 dark:border-slate-800 shadow-lg min-h-[380px] group"
+    >
+      {/* Glass Reflection Accent */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/20 pointer-events-none" />
+
+      {/* Glow highlight behind active risk color */}
+      <div
+        className="absolute -top-12 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-25"
+        style={{ backgroundColor: config.color }}
+      />
+
+      {/* Card Header */}
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3.5 z-10">
+        <div className="flex items-center space-x-2.5">
+          <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:rotate-6 transition-transform">
+            <Activity className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+              Risk Classification Centerpiece
+            </h3>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+              Multi-Agent AI Ensemble Assessment
+            </p>
+          </div>
+        </div>
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/50 uppercase tracking-wider">
+          LIVE TELEMETRY
+        </span>
+      </div>
+
+      {/* Centerpiece Gauge Visualization Area */}
+      <div className="relative w-full flex flex-col items-center justify-center my-auto py-2 z-10">
         {dashLoading ? (
-          <Loader2 className="h-6 w-6 text-health-cyan animate-spin" />
+          <div className="flex flex-col items-center justify-center h-56">
+            <Loader2 className="h-9 w-9 text-blue-600 animate-spin mb-3" />
+            <span className="text-xs text-slate-400 font-medium animate-pulse">Running Clinical Risk Scan...</span>
+          </div>
         ) : (
           <>
-            <svg className="w-56 h-full" viewBox="0 0 100 50">
-              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="6" />
-              <path d="M 10 50 A 40 40 0 0 1 36.6 20" fill="none" stroke="#10B981" strokeWidth="6" opacity="0.6" />
-              <path d="M 36.6 20 A 40 40 0 0 1 63.3 20" fill="none" stroke="#F59E0B" strokeWidth="6" opacity="0.6" />
-              <path d="M 63.3 20 A 40 40 0 0 1 90 50" fill="none" stroke="#F43F5E" strokeWidth="6" opacity="0.6" />
+            {/* SVG Arc Gauge */}
+            <div className="relative w-full max-w-[300px] aspect-[2/1.2] flex items-center justify-center">
+              <svg className="w-full h-full overflow-visible" viewBox="0 0 200 120">
+                <defs>
+                  {/* Dynamic Multi-Color Arc Gradient */}
+                  <linearGradient id="centerpieceArcGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="35%" stopColor="#f59e0b" />
+                    <stop offset="70%" stopColor="#f97316" />
+                    <stop offset="100%" stopColor="#ef4444" />
+                  </linearGradient>
 
-              <line
-                x1="50" y1="50" x2="50" y2="15"
-                stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"
-                style={{
-                  transformOrigin: '50% 50%',
-                  transform: `rotate(${needleAngle}deg)`,
-                  transition: 'transform 1s cubic-bezier(0.4, 0, 0.2, 1)'
-                }}
-              />
-              <circle cx="50" cy="50" r="4" fill="#FFFFFF" />
-            </svg>
+                  {/* Silver Metallic Needle Gradient */}
+                  <linearGradient id="metallicNeedleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#ffffff" />
+                    <stop offset="50%" stopColor="#cbd5e1" />
+                    <stop offset="100%" stopColor="#64748b" />
+                  </linearGradient>
 
-            <div className="absolute bottom-4 text-center">
-              <span className="text-lg font-bold font-display block leading-none">
-                {Math.round(simulatedScore)}%
-              </span>
-              <span className="text-[7px] text-health-textMuted uppercase font-bold">PROBABILITY</span>
+                  {/* Active Segment Selective Glow Filter */}
+                  <filter id="activeSegmentGlow" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+
+                  {/* Metallic Needle Drop Shadow */}
+                  <filter id="needleShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity="0.3" />
+                  </filter>
+                </defs>
+
+                {/* Base Track Arc */}
+                <path
+                  d="M 15 102 A 85 85 0 0 1 185 102"
+                  fill="none"
+                  stroke="currentColor"
+                  className="text-slate-100 dark:text-slate-800"
+                  strokeWidth="14"
+                  strokeLinecap="round"
+                />
+
+                {/* Colored Arc Fills Left to Right on Load */}
+                <motion.path
+                  d="M 15 102 A 85 85 0 0 1 185 102"
+                  fill="none"
+                  stroke="url(#centerpieceArcGradient)"
+                  strokeWidth="14"
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  initial={{ strokeDashoffset: circumference }}
+                  animate={{ strokeDashoffset: isUnscanned ? circumference : activeOffset }}
+                  transition={{ duration: 1.4, ease: [0.34, 1.56, 0.64, 1] }}
+                  filter="url(#activeSegmentGlow)"
+                />
+
+                {/* Radial Ticks */}
+                {ticks.map((t, idx) => (
+                  <line
+                    key={idx}
+                    x1={t.x1}
+                    y1={t.y1}
+                    x2={t.x2}
+                    y2={t.y2}
+                    stroke="currentColor"
+                    className={t.isMajor ? 'text-slate-400 dark:text-slate-500' : 'text-slate-200 dark:text-slate-800'}
+                    strokeWidth={t.isMajor ? 1.5 : 1}
+                  />
+                ))}
+
+                {/* MODERATE Label Centered Above Apex */}
+                <text x="100" y="8" fontSize="7" fill="#f59e0b" textAnchor="middle" fontWeight="700" letterSpacing="0.6">
+                  MODERATE
+                </text>
+
+                {/* LOW & HIGH Labels Base Aligned */}
+                <text x="15" y="118" fontSize="7" fill="#10b981" textAnchor="middle" fontWeight="700">
+                  LOW
+                </text>
+                <text x="185" y="118" fontSize="7" fill="#ef4444" textAnchor="middle" fontWeight="700">
+                  HIGH
+                </text>
+
+                {/* Metallic Thin Needle Pointer */}
+                <motion.g
+                  initial={{ rotate: -90 }}
+                  animate={{ rotate: targetRotation }}
+                  transition={{ duration: 1.4, ease: [0.34, 1.56, 0.64, 1] }}
+                  style={{ transformOrigin: '100px 102px' }}
+                  filter="url(#needleShadow)"
+                >
+                  {/* Needle Stem */}
+                  <line
+                    x1="100"
+                    y1="102"
+                    x2="100"
+                    y2="24"
+                    stroke="url(#metallicNeedleGradient)"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+                  {/* Needle Tip Accent Line */}
+                  <line
+                    x1="100"
+                    y1="24"
+                    x2="100"
+                    y2="18"
+                    stroke={config.color}
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+                </motion.g>
+
+                {/* Metallic Hub Pivot Point */}
+                <circle cx="100" cy="102" r="10" fill={config.color} opacity="0.25" className="animate-ping" />
+                <circle cx="100" cy="102" r="7" fill="url(#metallicNeedleGradient)" stroke="#475569" strokeWidth="1" />
+                <circle cx="100" cy="102" r="2.5" fill={config.color} />
+              </svg>
+
+              {/* Center Animated Score & Subtitle */}
+              <div className="absolute top-[50%] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center">
+                <div className="flex items-baseline space-x-0.5">
+                  <span
+                    className="text-5xl font-black font-mono tracking-tight transition-colors duration-500 drop-shadow-sm"
+                    style={{ color: isUnscanned ? '#94a3b8' : config.color }}
+                  >
+                    {isUnscanned ? '—' : displayScore}
+                  </span>
+                  {!isUnscanned && (
+                    <span className="text-2xl font-bold font-mono" style={{ color: config.color }}>
+                      %
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest -mt-1">
+                  10-Yr CVD Risk Score
+                </span>
+              </div>
             </div>
           </>
         )}
       </div>
 
-      <div className="flex justify-between items-center text-[9px] text-health-textMuted uppercase border-t border-white/5 pt-2">
-        <span>Risk Status:</span>
-        <span className={`font-bold ${
-          dashLoading ? 'text-health-textMuted animate-pulse' :
-          simulatedRisk === 'HIGH' ? 'text-health-rose' :
-          simulatedRisk === 'MODERATE' ? 'text-health-amber' :
-          'text-health-emerald'
-        }`}>{dashLoading ? 'Checking...' : simulatedRisk}</span>
+      {/* Threshold Legend Bar */}
+      <div className="z-10 bg-slate-50/80 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 mb-3 flex items-center justify-between text-[10px] font-medium text-slate-600 dark:text-slate-400">
+        <div className="flex items-center space-x-1 font-semibold text-slate-500">
+          <Info className="h-3 w-3 text-blue-500" />
+          <span>Thresholds:</span>
+        </div>
+        <div className="flex items-center space-x-3 font-mono text-[9.5px]">
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Low &lt;35%
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            Mod 35-65%
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            High &gt;65%
+          </span>
+        </div>
       </div>
-    </div>
+
+      {/* Bottom Status Bar */}
+      <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3 flex items-center justify-between z-10">
+        <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+          <IconComp className="h-4 w-4" style={{ color: config.color }} />
+          <span>Assessed Status</span>
+        </div>
+        <div
+          className={`px-3.5 py-1 rounded-full text-xs font-extrabold border transition-all duration-500 shadow-xs flex items-center space-x-1.5 ${config.bg}`}
+        >
+          <span>{dashLoading ? 'Evaluating...' : config.label}</span>
+        </div>
+      </div>
+    </motion.div>
   );
 };
 

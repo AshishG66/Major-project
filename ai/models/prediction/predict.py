@@ -72,20 +72,17 @@ class HeartDiseasePredictor:
         top_positive = [c for c in contributions if c["impact"] == "INCREASES_RISK"][:3]
         top_negative = [c for c in contributions if c["impact"] == "DECREASES_RISK"][:3]
         
-        explanation = f"Your cardiovascular risk is assessed as {predicted_risk} using the {self.metadata['model_name']} model (Confidence: {confidence * 100:.1f}%)."
-        
-        if predicted_risk == "HIGH" or predicted_risk == "MODERATE":
-            factors = ", ".join([f"higher {c['feature']} ({c['value']})" for c in top_positive])
-            explanation += f" The primary factors increasing your risk score are {factors}."
-            if top_negative:
-                reductions = ", ".join([f"{c['feature']} ({c['value']})" for c in top_negative])
-                explanation += f" On the positive side, your {reductions} are helping lower your risk."
+        calculated_risk_score = float(np.dot(probabilities, [15.0, 50.0, 90.0]))
+
+        if calculated_risk_score >= 65 or predicted_risk == "HIGH":
+            pos_str = ", ".join([f"{c['feature']} ({c['value']})" for c in top_positive]) or "elevated arterial pressure"
+            explanation = f"The patient demonstrates severe cardiovascular risk ({calculated_risk_score:.0f}%) primarily due to {pos_str}."
+        elif calculated_risk_score >= 30 or predicted_risk == "MODERATE":
+            pos_str = ", ".join([f"{c['feature']} ({c['value']})" for c in top_positive]) or "borderline physiological vitals"
+            explanation = f"The patient demonstrates moderate cardiovascular risk ({calculated_risk_score:.0f}%) driven by {pos_str}."
         else:
-            reductions = ", ".join([f"healthy {c['feature']} ({c['value']})" for c in top_negative])
-            explanation += f" Your low risk assessment is primarily driven by your {reductions}."
-            if top_positive:
-                warnings = ", ".join([f"higher {c['feature']} ({c['value']})" for c in top_positive])
-                explanation += f" However, keep an eye on {warnings} as they are slight negative contributors."
+            neg_str = ", ".join([f"healthy {c['feature']} ({c['value']})" for c in top_negative]) or "optimal vital signs"
+            explanation = f"The patient's cardiovascular profile appears healthy ({calculated_risk_score:.0f}% risk) with {neg_str}."
 
         return {
             "riskLevel": predicted_risk,

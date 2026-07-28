@@ -20,6 +20,8 @@ const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage'));
 const DoctorPortalPage = lazy(() => import('../pages/DoctorPortalPage'));
 const AdminPortalPage = lazy(() => import('../pages/AdminPortalPage'));
 
+import CustomCursor from '../components/CustomCursor';
+
 const queryClient = new QueryClient();
 
 // Loading spinner fallback shown between route transitions
@@ -27,8 +29,8 @@ function PageLoader() {
   return (
     <div className="h-full flex items-center justify-center min-h-[60vh]">
       <div className="flex flex-col items-center space-y-4">
-        <Loader2 className="h-8 w-8 text-health-cyan animate-spin" />
-        <p className="text-xs text-health-textMuted font-light tracking-wider uppercase">Loading module...</p>
+        <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+        <p className="text-xs text-slate-500 font-light tracking-wider uppercase">Loading module...</p>
       </div>
     </div>
   );
@@ -50,22 +52,11 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode,
 }
 
 export default function App() {
-  const [mousePos, setMousePos] = useState({ x: -200, y: -200 });
-
-  // Track cursor globally for the RGB cursor effect
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        {/* Global Premium UI details */}
-        <div className="rgb-cursor" style={{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }} />
+        {/* Global Premium Portfolio Cursor & Noise Overlay */}
+        <CustomCursor />
         <div className="noise-overlay" />
 
         <Suspense fallback={<PageLoader />}>

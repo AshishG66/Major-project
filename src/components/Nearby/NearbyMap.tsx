@@ -50,16 +50,16 @@ export default function NearbyMap({
           center: { lat: center[0], lng: center[1] },
           zoom: 13,
           styles: [
-            { elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
-            { elementType: 'labels.text.stroke', stylers: [{ color: '#0f172a' }] },
-            { elementType: 'labels.text.fill', stylers: [{ color: '#94a3b8' }] },
-            { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#cbd5e1' }] },
-            { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#06b6d4' }] },
-            { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1e293b' }] },
-            { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#334155' }] },
-            { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1e293b' }] },
-            { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#94a3b8' }] },
-            { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0284c7' }] },
+            { elementType: 'geometry', stylers: [{ color: '#f8fafc' }] },
+            { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+            { elementType: 'labels.text.fill', stylers: [{ color: '#475569' }] },
+            { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#1e293b' }] },
+            { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#2563eb' }] },
+            { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e2e8f0' }] },
+            { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+            { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#cbd5e1' }] },
+            { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
+            { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#bfdbfe' }] },
           ],
           disableDefaultUI: false,
           zoomControl: true,
@@ -256,12 +256,12 @@ export default function NearbyMap({
   };
 
   return (
-    <div className="w-full h-full relative min-h-[400px] bg-[#0f172a] flex items-center justify-center overflow-hidden rounded-2xl border border-white/5 shadow-glow">
+    <div className="w-full h-full relative min-h-[400px] bg-slate-100 flex items-center justify-center overflow-hidden rounded-2xl border border-slate-200/80 shadow-xs">
       {/* Loading Spinner overlay */}
       {mapLoading && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#0f172a]/90 space-y-3">
-          <Loader2 className="h-8 w-8 text-health-cyan animate-spin" />
-          <p className="text-[10px] text-health-textMuted uppercase font-bold tracking-widest">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/90 space-y-3">
+          <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
             Initializing Google Maps Canvas...
           </p>
         </div>
@@ -269,19 +269,19 @@ export default function NearbyMap({
 
       {/* Error / Fallback Panel */}
       {mapError && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-health-dark/95 text-center space-y-4">
-          <div className="h-12 w-12 rounded-2xl bg-health-rose/15 border border-health-rose/30 flex items-center justify-center text-health-rose">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-white/95 text-center space-y-4">
+          <div className="h-12 w-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
             <AlertTriangle className="h-6 w-6" />
           </div>
           <div className="space-y-1.5 max-w-xs">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Maps Canvas Connection Notice</h4>
-            <p className="text-[10px] text-health-textMuted font-light leading-relaxed">
+            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Maps Canvas Connection Notice</h4>
+            <p className="text-[10px] text-slate-600 font-light leading-relaxed">
               Google Maps JS API did not initialize directly. You can inspect facility details, navigate via Google Maps directions links, and use all filters.
             </p>
           </div>
           <button
             onClick={handleRetry}
-            className="px-3.5 py-2 border border-health-cyan/30 bg-health-cyan/15 hover:bg-health-cyan/25 text-[10px] uppercase font-bold rounded-xl text-health-cyan flex items-center space-x-1.5 transition-all"
+            className="px-3.5 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[10px] uppercase font-bold rounded-xl text-blue-700 flex items-center space-x-1.5 transition-all shadow-xs"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             <span>Reload Map Canvas</span>

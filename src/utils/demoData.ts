@@ -400,6 +400,9 @@ export async function handleDemoRequest(endpoint: string, options: any = {}): Pr
 
   // 1. GET /dashboard
   if (endpoint === '/dashboard' && method === 'GET') {
+    const latestPred = activePatient.predictions.length > 0
+      ? activePatient.predictions[activePatient.predictions.length - 1]
+      : null;
     return {
       success: true,
       user: {
@@ -409,16 +412,29 @@ export async function handleDemoRequest(endpoint: string, options: any = {}): Pr
         firstName: activePatient.name.split(' ')[0],
         lastName: activePatient.name.split(' ')[1]
       },
-      cardioRisk: activePatient.predictions[0] ? {
-        riskLevel: activePatient.predictions[activePatient.predictions.length - 1].riskLevel,
-        modelName: activePatient.predictions[activePatient.predictions.length - 1].modelName,
-        id: activePatient.predictions[activePatient.predictions.length - 1].id
+      cardioRisk: latestPred ? {
+        riskLevel: latestPred.riskLevel,
+        riskScore: latestPred.riskScore,
+        modelName: latestPred.modelName,
+        confidenceScore: latestPred.confidenceScore,
+        id: latestPred.id
       } : null,
       healthScore: activePatient.healthScore,
+      // Include predictions array with full factors so DashboardPage can read heartRate
+      predictions: activePatient.predictions.map((p) => ({
+        id: p.id,
+        riskLevel: p.riskLevel,
+        riskScore: p.riskScore,
+        healthScore: p.healthScore,
+        createdAt: p.createdAt,
+        factors: p.factors,
+        shapExplanation: p.shapExplanation
+      })),
       lifestyleSummary: {
         water: activePatient.logs.reduce((sum, l) => sum + (l.waterIntake || 0), 0) / (activePatient.logs.length || 1),
         steps: activePatient.logs.reduce((sum, l) => sum + (l.stepsCount || 0), 0) / (activePatient.logs.length || 1),
-        activeMins: activePatient.logs.reduce((sum, l) => sum + (l.activeMins || 0), 0) / (activePatient.logs.length || 1)
+        activeMins: activePatient.logs.reduce((sum, l) => sum + (l.activeMins || 0), 0) / (activePatient.logs.length || 1),
+        sleep: activePatient.logs.reduce((sum, l) => sum + (l.sleepHours || 0), 0) / (activePatient.logs.length || 1)
       },
       badges: [
         { badgeName: 'CARDIAC_SHIELD', awardedAt: new Date().toISOString() },
@@ -637,14 +653,7 @@ export async function handleDemoRequest(endpoint: string, options: any = {}): Pr
       title: 'Consultation ' + new Date().toLocaleDateString()
     };
     activePatient.chatSessions = [newSess, ...activePatient.chatSessions];
-    activePatient.chatMessages[newSessId] = [
-      {
-        id: 'msg-init-' + Date.now(),
-        role: 'ASSISTANT',
-        content: `Greetings. I am **HridyaAI**, your cardiovascular health command assistant. You are currently consulting with my default **Orchestrator**. Ask me clinical metrics, diet plans, report parsing, or cardiac guidelines.`,
-        agentType: 'ORCHESTRATOR'
-      }
-    ];
+    activePatient.chatMessages[newSessId] = [];
     saveDemoPatients(patients);
     return { success: true, session: newSess };
   }
@@ -652,8 +661,6 @@ export async function handleDemoRequest(endpoint: string, options: any = {}): Pr
   // 14. POST /chat/message
   if (endpoint === '/chat/message' && method === 'POST') {
     const { sessionId, message } = options.body;
-
-    // Attempt live Gemini backend request first
     try {
       const res = await fetch('/api/chat/message', {
         method: 'POST',
@@ -663,56 +670,13 @@ export async function handleDemoRequest(endpoint: string, options: any = {}): Pr
       if (res.ok) {
         return await res.json();
       }
-    } catch (e) {
-      // Backend unavailable, continue to mock handler
+      const errData = await res.json().catch(() => ({}));
+      console.error('Chat API Error Response:', errData);
+      throw new Error(errData.message || 'HridyaAI is temporarily unavailable.');
+    } catch (e: any) {
+      console.error('Chat API Error:', e);
+      throw new Error('HridyaAI is temporarily unavailable.');
     }
-
-    const userMsg = {
-      id: 'msg-usr-' + Date.now(),
-      role: 'USER',
-      content: message,
-      agentType: 'ORCHESTRATOR'
-    };
-
-    const text = message.toLowerCase();
-    let agentType = 'ORCHESTRATOR';
-    let content = '';
-
-    const hasWord = (keywords: string[]) => {
-      return keywords.some(keyword => {
-        const escaped = keyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        return new RegExp(`\\b${escaped}\\b`, 'i').test(message);
-      });
-    };
-
-    // Specialist routing engine logic
-    if (hasWord(['chest pain', 'angina', 'heart attack', 'distress', 'emergency', 'breathing', 'pain'])) {
-      agentType = 'EMERGENCY';
-      content = `🚨 **EMERGENCY WARNING**: You flagged chest distress or pain symptoms. **Emergency Agent** has activated emergency response. Please remain sitting. Loosen tight clothing. I have geolocated nearby cardiac wards. Dial 112 immediately.`;
-    } else if (hasWord(['diet', 'food', 'eat', 'recipe', 'salt', 'sodium', 'nutrition', 'meal', 'potassium'])) {
-      agentType = 'DIET';
-      content = `🥗 **DIET SCHEME ACTIVE**: **Diet Agent** recommends strict DASH dietary constraints:\n*   **Sodium**: Keep strictly under 1,500mg daily. Avoid table salt.\n*   **Hydration**: Drink 2.5-3.0 liters of pure water daily.\n*   **Fats**: Replace saturated trans-fats with high Omega-3 fish or olive oils.`;
-    } else if (hasWord(['exercise', 'workout', 'gym', 'cardio', 'run', 'active', 'walk', 'steps'])) {
-      agentType = 'EXERCISE';
-      content = `🏃 **FITNESS PROTOCOL ENGAGED**: **Exercise Agent** details cardiac heart rate targets:\n*   Aim for 150 minutes of moderate intensity cardiovascular activity weekly.`;
-    } else {
-      content = `[Offline Demo Mode] Connected to local fallback orchestrator. Please ensure backend server is running for live Gemini responses. Query received: "${message}".`;
-    }
-
-    const assistantMsg = {
-      id: 'msg-ast-' + Date.now(),
-      role: 'ASSISTANT',
-      content,
-      agentType
-    };
-
-    activePatient.chatMessages[sessionId] = [
-      ...(activePatient.chatMessages[sessionId] || []),
-      userMsg,
-      assistantMsg
-    ];
-    saveDemoPatients(patients);
-    return { success: true, reply: content, agentType };
   }
 
   // 15. POST /chat/report/upload

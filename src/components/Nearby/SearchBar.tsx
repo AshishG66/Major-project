@@ -37,7 +37,7 @@ export default function SearchBar({ onSearch, onRequestGeolocation, isLoading }:
     <div className="space-y-2.5 w-full max-w-3xl">
       <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5 w-full">
         <div className="relative flex-1">
-          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-white/40 pointer-events-none">
+          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
             <MapPin className="h-4 w-4" />
           </span>
           <input
@@ -45,7 +45,7 @@ export default function SearchBar({ onSearch, onRequestGeolocation, isLoading }:
             value={city}
             onChange={(e) => setCity(e.target.value)}
             placeholder="Search City, Suburb, or Hospital Area (e.g. New Delhi, Sector 18)..."
-            className="w-full pl-10 pr-4 py-2.5 text-xs glass-input placeholder-white/25 focus:border-health-cyan transition-all"
+            className="w-full pl-10 pr-4 py-2.5 text-xs glass-input placeholder-slate-400 text-slate-900 focus:border-blue-500 transition-all"
           />
         </div>
         
@@ -55,7 +55,7 @@ export default function SearchBar({ onSearch, onRequestGeolocation, isLoading }:
             value={pincode}
             onChange={(e) => setPincode(e.target.value)}
             placeholder="Pincode..."
-            className="w-full px-4 py-2.5 text-xs glass-input placeholder-white/25 focus:border-health-cyan transition-all"
+            className="w-full px-4 py-2.5 text-xs glass-input placeholder-slate-400 text-slate-900 focus:border-blue-500 transition-all"
           />
         </div>
 
@@ -63,7 +63,7 @@ export default function SearchBar({ onSearch, onRequestGeolocation, isLoading }:
           <button
             type="submit"
             disabled={isLoading || (!city && !pincode)}
-            className="px-4 py-2.5 bg-gradient-to-r from-health-blue to-health-cyan text-xs font-semibold rounded-xl text-white hover:shadow-glow flex items-center justify-center space-x-1.5 transition-all disabled:opacity-50"
+            className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-xs font-semibold rounded-xl text-white hover:from-blue-700 hover:to-blue-600 shadow-xs flex items-center justify-center space-x-1.5 transition-all disabled:opacity-50"
           >
             <Search className="h-4 w-4" />
             <span>Search</span>
@@ -73,10 +73,10 @@ export default function SearchBar({ onSearch, onRequestGeolocation, isLoading }:
             type="button"
             onClick={onRequestGeolocation}
             disabled={isLoading}
-            className="px-3.5 py-2.5 border border-health-emerald/30 bg-health-emerald/15 hover:bg-health-emerald/25 text-health-emerald text-xs font-semibold rounded-xl flex items-center justify-center space-x-1.5 transition-all disabled:opacity-50"
+            className="px-3.5 py-2.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-xl flex items-center justify-center space-x-1.5 transition-all shadow-xs disabled:opacity-50"
             title="Detect My Location"
           >
-            <Crosshair className="h-4 w-4 animate-spin-slow" />
+            <Crosshair className="h-4 w-4 text-emerald-600" />
             <span className="hidden md:inline">Locate Me</span>
           </button>
         </div>
@@ -84,13 +84,13 @@ export default function SearchBar({ onSearch, onRequestGeolocation, isLoading }:
 
       {/* Quick City Presets */}
       <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none text-[9.5px]">
-        <span className="text-health-textMuted uppercase font-bold shrink-0 text-[8.5px]">Quick Zones:</span>
+        <span className="text-slate-500 uppercase font-bold shrink-0 text-[8.5px]">Quick Zones:</span>
         {CITY_PRESETS.map((preset) => (
           <button
             key={preset.name}
             type="button"
             onClick={() => handlePresetClick(preset.name, preset.code)}
-            className="px-2.5 py-1 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all shrink-0 font-medium"
+            className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-all shrink-0 font-medium shadow-xs"
           >
             📍 {preset.name}
           </button>

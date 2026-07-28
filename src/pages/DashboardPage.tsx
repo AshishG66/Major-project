@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
+import { usePredictionStore } from '../store/predictionStore';
 
 // Memoized Grid Cards
 import HealthScoreCard from '../components/HealthScoreCard';
@@ -17,6 +18,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 
 // Lazy-load heavier widgets to speed up initial paint & code-splitting
 const ThreeHeart = lazy(() => import('../components/ThreeHeart'));
+const DigitalTwinSuite = lazy(() => import('../components/DigitalTwinSuite'));
 const AnalyticsTab = lazy(() => import('../components/AnalyticsTab'));
 const SimulationTab = lazy(() => import('../components/SimulationTab'));
 const DoctorTab = lazy(() => import('../components/DoctorTab'));
@@ -24,9 +26,40 @@ const DoctorTab = lazy(() => import('../components/DoctorTab'));
 // Standard sub-components
 import ThreeBackground from '../components/ThreeBackground';
 import AIHealthAssistant from '../components/AIHealthAssistant';
+import DashboardLoader from '../components/DashboardLoader';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16, scale: 0.98 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: 'spring', stiffness: 100, damping: 15 },
+  },
+};
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
+  const [showLoader, setShowLoader] = useState(() => {
+    return !sessionStorage.getItem('hridayadarpana_intro_seen');
+  });
+
+  const handleLoaderComplete = useCallback(() => {
+    sessionStorage.setItem('hridayadarpana_intro_seen', 'true');
+    setShowLoader(false);
+  }, []);
+
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'analytics' | 'simulation' | 'doctor'>('analytics');
@@ -128,23 +161,31 @@ export default function DashboardPage() {
   const history = historyRes?.history || [];
   const reminders = remindersRes?.reminders || [];
 
+  // Use riskScore (0-100 probability %) for the gauge needle — NOT healthScore
+  const latestPrediction = dash?.predictions?.[0] || history[0];
+  const latestRiskScore = risk?.riskScore ?? (latestPrediction?.riskScore ?? 0);
+
   // Compute what-if simulation results
-  let simulatedScore = originalScore;
-  let simulatedRisk = risk?.riskLevel || 'UNSCANNED';
+  let simulatedScore = latestRiskScore;
+  let simulatedRisk = risk?.riskLevel || (latestRiskScore > 0 ? (latestRiskScore >= 85 ? 'CRITICAL' : latestRiskScore >= 65 ? 'HIGH' : latestRiskScore >= 35 ? 'MODERATE' : 'LOW') : 'UNSCANNED');
 
   if (isSimActive) {
-    let scoreVal = 100;
-    if (simBP > 120) scoreVal -= (simBP - 120) * 0.75;
-    if (simBP < 90) scoreVal -= (90 - simBP) * 0.3;
-    if (simBmi > 25) scoreVal -= (simBmi - 25) * 2.2;
-    scoreVal -= (simStress - 1) * 3.2;
-    if (simExercise < 3) scoreVal -= (3 - simExercise) * 5;
-    else scoreVal += (simExercise - 3) * 1.5;
-    if (simSleep < 7) scoreVal -= (7 - simSleep) * 4;
+    let riskVal = 10;
+    if (simBP >= 160) riskVal = 84;
+    else if (simBP >= 140) riskVal = 68;
+    else if (simBP >= 130) riskVal = 52;
+    else riskVal = 15;
+    if (simBmi >= 30) riskVal = Math.min(100, riskVal + 16);
+    else if (simBmi >= 26) riskVal = Math.min(100, riskVal + 8);
+    riskVal = Math.min(100, riskVal + (simStress - 5) * 3);
+    riskVal = Math.max(5, riskVal - (simExercise - 3) * 4);
+    if (simSleep < 6) riskVal = Math.min(100, riskVal + 8);
 
-    simulatedScore = Math.max(10, Math.min(100, Math.round(scoreVal)));
+    simulatedScore = Math.max(5, Math.min(100, Math.round(riskVal)));
 
-    if (simBP >= 155 || simBmi >= 30 || simStress >= 8) {
+    if (simBP >= 165 || (simBP >= 160 && simBmi >= 29.5)) {
+      simulatedRisk = 'CRITICAL';
+    } else if (simBP >= 140 || simBmi >= 30 || simStress >= 8) {
       simulatedRisk = 'HIGH';
     } else if (simBP >= 130 || simBmi >= 26 || simStress >= 6 || simSleep < 6) {
       simulatedRisk = 'MODERATE';
@@ -153,9 +194,22 @@ export default function DashboardPage() {
     }
   }
 
-  // Calculate dynamic Heart Rate and Glow Intensity for R3F Heart component
-  const simulatedHR = Math.max(50, Math.min(140, Math.round(
-    (dash?.predictions?.[0]?.factors?.heartRate || 72) + (simStress - 5) * 5 - (simExercise - 3) * 3
+  // Exact Gauge Needle Angle Formula (-90° to +90°)
+  // 0% Risk -> -90° (Green/LOW left)
+  // 50% Risk -> 0° (Amber/MODERATE middle)
+  // 100% Risk -> +90° (Red/HIGH/CRITICAL right)
+  const needleAngle = -90 + (Math.max(0, Math.min(100, simulatedScore)) / 100) * 180;
+
+  // Health score for HealthScoreCard (inverted from risk: high health = low risk)
+  const displayHealthScore = isSimActive
+    ? Math.max(10, Math.min(100, Math.round(100 - simulatedScore * 0.85)))
+    : originalScore;
+
+  // Calculate dynamic Heart Rate: use actual heartRate from latest prediction factors
+  const latestFactors = dash?.predictions?.[0]?.factors || history[0]?.factors || {};
+  const baseHR = latestFactors.heartRate || 72;
+  const simulatedHR = Math.max(50, Math.min(165, Math.round(
+    baseHR + (simStress - 5) * 4 - (simExercise - 3) * 2
   )));
   const glowIntensity = simStress >= 8 ? 2.2 : simStress >= 6 ? 1.5 : 0.8;
 
@@ -200,17 +254,17 @@ export default function DashboardPage() {
     }
   };
 
-  // Animated Countup State
+  // Animated Countup State for HealthScoreCard (uses health score, not risk %)
   const [displayScore, setDisplayScore] = useState(0);
   useEffect(() => {
     let start = 0;
-    const end = simulatedScore;
+    const end = displayHealthScore;
     if (start === end) {
       setDisplayScore(end);
       return;
     }
     const duration = 800;
-    const range = end - start;
+    const range = Math.abs(end - start);
     let current = start;
     const increment = end > start ? 1 : -1;
     const stepTime = Math.abs(Math.floor(duration / range));
@@ -222,7 +276,7 @@ export default function DashboardPage() {
       }
     }, Math.max(stepTime, 8));
     return () => clearInterval(timer);
-  }, [simulatedScore]);
+  }, [displayHealthScore]);
 
   const weeklyAISummary = useMemo(() => {
     const actRisk = isSimActive ? simulatedRisk : (risk?.riskLevel || 'UNSCANNED');
@@ -263,9 +317,6 @@ export default function DashboardPage() {
     { subject: 'Stress Control', value: (11 - simStress) * 10 }
   ], [simBP, simSleep, simExercise, simBmi, simStress]);
 
-  // Speedometer angle
-  const needleAngle = (simulatedScore / 100) * 180 - 90;
-
   // Concentric rings progress values
   const pctWater = Math.min(100, ((summary?.water || 0) / 3.0) * 100);
   const pctSteps = Math.min(100, ((summary?.steps || 0) / 10000) * 100);
@@ -295,8 +346,26 @@ export default function DashboardPage() {
     deleteReminderMutation.mutate(id);
   }, [deleteReminderMutation]);
 
+  const activeFactors = latestFactors;
+  const activeRiskLevel = isSimActive ? simulatedRisk : (risk?.riskLevel || (latestRiskScore > 0 ? (latestRiskScore >= 65 ? 'HIGH' : latestRiskScore >= 35 ? 'MODERATE' : 'LOW') : 'LOW'));
+  const activeRiskScore = isSimActive ? simulatedScore : latestRiskScore;
+  const activeSystolic = isSimActive ? simBP : (activeFactors.systolicBP || 120);
+  const activeDiastolic = activeFactors.diastolicBP || 80;
+  const activeChol = activeFactors.cholesterol || 190;
+  const activeBmi = isSimActive ? simBmi : (activeFactors.bmi || 24.5);
+  const activeSugar = activeFactors.bloodSugar || 95;
+  const activeSmoking = activeFactors.smoking || false;
+  const activeAge = activeFactors.age || 45;
+  const shapExplanation = dash?.predictions?.[0]?.shapExplanation || history[0]?.shapExplanation || [];
+
   return (
     <div className="space-y-6 relative">
+      <AnimatePresence>
+        {showLoader && (
+          <DashboardLoader onComplete={handleLoaderComplete} />
+        )}
+      </AnimatePresence>
+
       <Suspense fallback={<div className="absolute inset-0 bg-transparent" />}>
         <ThreeBackground />
       </Suspense>
@@ -305,13 +374,17 @@ export default function DashboardPage() {
       <AIHealthAssistant />
 
       {/* ROW 1 & 2: Health Score, 3D Heart centerpiece, Risk Gauge, ECG, AI Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-        
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate={!showLoader ? "visible" : "hidden"}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
+      >
         {/* Left Column: Health Score & ECG */}
-        <div className="flex flex-col gap-6">
+        <motion.div variants={itemVariants} className="flex flex-col gap-6">
           <HealthScoreCard
             dashLoading={dashLoading}
-            simulatedScore={simulatedScore}
+            simulatedScore={displayHealthScore}
             displayScore={displayScore}
           />
 
@@ -319,23 +392,63 @@ export default function DashboardPage() {
             historyLoading={historyLoading}
             simulatedHR={simulatedHR}
           />
-        </div>
+        </motion.div>
 
-        {/* Center Column: 3D Heart */}
-        <div className="glass-panel p-6 rounded-2xl flex flex-col items-center justify-between text-center relative overflow-hidden bg-gradient-to-br from-health-card via-black/10 to-black/30 h-[664px] border-health-blue/20">
-          <span className="absolute top-3 left-3 text-[9px] uppercase font-bold text-health-blue tracking-wider flex items-center gap-1 z-10">
-            <Heart className="h-3 w-3 text-health-rose animate-pulse" />
-            <span>Interactive Digital Twin Centerpiece</span>
-          </span>
+        {/* Center Column: 3D Heart Digital Twin (Gentle Floating Effect) */}
+        <motion.div
+          variants={itemVariants}
+          animate={{ y: [0, -6, 0] }}
+          transition={{ repeat: Infinity, duration: 4.5, ease: 'easeInOut' }}
+          className="glass-panel p-6 rounded-2xl flex flex-col items-center justify-between text-center relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-blue-50/30 h-[664px] border border-slate-200/80 shadow-md group"
+        >
+          {/* Glass reflection gradient */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/20 pointer-events-none" />
+
+          <div className="w-full flex items-center justify-between z-10">
+            <span className="text-[9px] uppercase font-bold text-blue-600 tracking-wider flex items-center gap-1.5">
+              <Heart className="h-3.5 w-3.5 text-rose-500 animate-pulse" />
+              <span>Interactive Digital Twin</span>
+            </span>
+
+            {/* Dynamic Risk Status Badge HUD */}
+            <span className={`text-[9px] uppercase font-extrabold tracking-widest px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-xs ${
+              activeRiskLevel === 'CRITICAL'
+                ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse'
+                : activeRiskLevel === 'HIGH'
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : activeRiskLevel === 'MODERATE'
+                ? 'bg-amber-50 text-amber-600 border-amber-200'
+                : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${
+                activeRiskLevel === 'CRITICAL' ? 'bg-rose-500 animate-ping' : activeRiskLevel === 'HIGH' ? 'bg-amber-500' : activeRiskLevel === 'MODERATE' ? 'bg-amber-400' : 'bg-emerald-500'
+              }`} />
+              <span>{activeRiskLevel} RISK TWIN</span>
+            </span>
+          </div>
           
-          <div className="w-full max-w-[600px] max-h-[600px] aspect-square relative z-0 flex items-center justify-center mx-auto my-auto">
+          <div className="w-full flex-1 relative z-0 flex items-center justify-center mx-auto my-auto min-h-[420px]">
             <Suspense fallback={
               <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
-                <Loader2 className="h-10 w-10 text-health-cyan animate-spin" />
-                <p className="text-[10px] text-health-textMuted uppercase font-bold tracking-widest">Loading 3D Anatomy Model...</p>
+                <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Loading 3D Anatomy Model...</p>
               </div>
             }>
-              <ThreeHeart heartRate={simulatedHR} glowIntensity={glowIntensity} onHoverPart={setHoveredHeartPart} />
+              <ThreeHeart
+                heartRate={simulatedHR}
+                riskLevel={activeRiskLevel}
+                riskScore={activeRiskScore}
+                systolicBP={activeSystolic}
+                diastolicBP={activeDiastolic}
+                cholesterol={activeChol}
+                bmi={activeBmi}
+                bloodSugar={activeSugar}
+                smoking={activeSmoking}
+                age={activeAge}
+                shapFactors={shapExplanation}
+                glowIntensity={glowIntensity}
+                onHoverPart={setHoveredHeartPart}
+              />
             </Suspense>
           </div>
 
@@ -347,7 +460,7 @@ export default function DashboardPage() {
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
-                  className="p-2 rounded bg-black/60 border border-white/10 text-[9px] text-health-cyan flex items-start space-x-1.5 justify-center leading-relaxed"
+                  className="p-2.5 rounded-xl bg-white/90 border border-slate-200 text-[9px] text-blue-600 flex items-start space-x-1.5 justify-center leading-relaxed shadow-xs"
                 >
                   <span>{getHeartPartExplanation(hoveredHeartPart)}</span>
                 </motion.div>
@@ -358,10 +471,14 @@ export default function DashboardPage() {
                   animate={{ opacity: 1 }}
                   className="space-y-0.5 text-center"
                 >
-                  <span className="text-[14px] font-bold text-white tracking-wide block">
-                    {simulatedHR} BPM
-                  </span>
-                  <span className="text-[8px] uppercase tracking-widest text-health-textMuted font-bold block">
+                  <div className="flex items-center justify-center gap-3 text-[11px] font-bold text-slate-900 tracking-wide">
+                    <span>{simulatedHR} BPM</span>
+                    <span className="text-slate-300">•</span>
+                    <span>BP: {activeSystolic}/{activeDiastolic} mmHg</span>
+                    <span className="text-slate-300">•</span>
+                    <span>Chol: {activeChol} mg/dL</span>
+                  </div>
+                  <span className="text-[8px] uppercase tracking-widest text-slate-500 font-bold block mt-0.5">
                     {simulatedHR >= 100 ? 'Tachycardia / Elevated Rhythm' : simulatedHR <= 55 ? 'Bradycardia / Slow Rhythm' : 'Normal Sinus Rhythm'}
                   </span>
                 </motion.div>
@@ -369,13 +486,13 @@ export default function DashboardPage() {
             </AnimatePresence>
           </div>
 
-          <span className="text-[7.5px] text-health-textMuted uppercase font-semibold pointer-events-none z-10">
-            Hover components to isolate chambers & vessels
+          <span className="text-[7.5px] text-slate-400 uppercase font-semibold pointer-events-none z-10">
+            Hover components to isolate chambers & vessels • Drag to rotate • Scroll to zoom
           </span>
-        </div>
+        </motion.div>
 
         {/* Right Column: Risk Gauge & AI Summary */}
-        <div className="flex flex-col gap-6">
+        <motion.div variants={itemVariants} className="flex flex-col gap-6">
           <RiskGaugeCard
             dashLoading={dashLoading}
             simulatedScore={simulatedScore}
@@ -387,9 +504,9 @@ export default function DashboardPage() {
             dashLoading={dashLoading}
             weeklyAISummary={weeklyAISummary}
           />
-        </div>
+        </motion.div>
 
-      </div>
+      </motion.div>
 
       {/* ROW 3: Timeline & Reminders (Split 2-Column Grid) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -406,23 +523,55 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* ROW 3.5: AI DIGITAL TWIN PLATFORM SUITE */}
+      <div className="border-t border-slate-200/80 pt-6 mt-6">
+        <Suspense fallback={
+          <div className="h-64 flex flex-col items-center justify-center space-y-3 glass-panel rounded-3xl">
+            <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Initializing AI Digital Twin Suite...</p>
+          </div>
+        }>
+          <ErrorBoundary>
+            <DigitalTwinSuite
+              heartRate={simulatedHR}
+              riskLevel={activeRiskLevel}
+              riskScore={activeRiskScore}
+              healthScore={displayHealthScore}
+              systolicBP={activeSystolic}
+              diastolicBP={activeDiastolic}
+              cholesterol={activeChol}
+              bmi={activeBmi}
+              bloodSugar={activeSugar}
+              smoking={activeSmoking}
+              age={activeAge}
+              gender={dash?.user?.gender || 'MALE'}
+              stressLevel={simStress}
+              sleepDuration={simSleep}
+              exerciseFrequency={simExercise}
+              shapFactors={shapExplanation}
+              onHoverPart={setHoveredHeartPart}
+            />
+          </ErrorBoundary>
+        </Suspense>
+      </div>
+
       {/* ROW 4: TAB BAR AND DYNAMIC CLINICAL VIEWS */}
-      <div className="border-t border-white/5 pt-8 mt-8 space-y-6">
+      <div className="border-t border-slate-200/80 pt-8 mt-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white/90">Deep Clinical Diagnostics & Portal Tabs</h3>
-            <p className="text-xxs text-health-textMuted leading-relaxed font-light">Interactive model validation parameters, predictive What-If analytics, care notes, and family records.</p>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">Deep Clinical Diagnostics & Portal Tabs</h3>
+            <p className="text-xxs text-slate-500 leading-relaxed font-light">Interactive model validation parameters, predictive What-If analytics, care notes, and family records.</p>
           </div>
 
-          <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 self-start md:self-auto">
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start md:self-auto">
             {(['analytics', 'simulation', 'doctor'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${
                   activeTab === tab 
-                    ? 'bg-gradient-to-r from-health-blue to-health-cyan text-white shadow-glow' 
-                    : 'text-health-textMuted hover:text-white'
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {tab}
@@ -434,8 +583,8 @@ export default function DashboardPage() {
         {/* TAB CONTENTS (LAZY-LOADED PROGRESSIVELY WITH ISOLATED ERROR BOUNDARIES) */}
         <Suspense fallback={
           <div className="h-48 flex flex-col items-center justify-center space-y-3">
-            <Loader2 className="h-6 w-6 text-health-cyan animate-spin" />
-            <p className="text-[10px] text-health-textMuted uppercase font-bold tracking-widest">Loading Tab Components...</p>
+            <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Loading Tab Components...</p>
           </div>
         }>
           <AnimatePresence mode="wait">
@@ -488,29 +637,29 @@ export default function DashboardPage() {
       <AnimatePresence>
         {logModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <div onClick={() => setLogModalOpen(false)} className="absolute inset-0 bg-black opacity-50" />
-            <div className="w-full max-w-md glass-panel-glow p-6 rounded-2xl border-white/10 relative z-10">
-              <h3 className="font-display font-bold text-base mb-4 border-b border-white/5 pb-3">Log Daily Habits</h3>
+            <div onClick={() => setLogModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
+            <div className="w-full max-w-md bg-white p-6 rounded-2xl border border-slate-200 relative z-10 shadow-saas-lg">
+              <h3 className="font-display font-bold text-base mb-4 border-b border-slate-100 pb-3 text-slate-900">Log Daily Habits</h3>
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xxs font-medium text-health-textMuted mb-1">Water Intake (Liters)</label>
+                  <label className="block text-xxs font-medium text-slate-600 mb-1">Water Intake (Liters)</label>
                   <input type="number" step="0.1" name="waterIntake" value={formData.waterIntake} onChange={handleInputChange} placeholder="e.g. 1.0" className="w-full px-3 py-2 text-xs glass-input" required />
                 </div>
                 <div>
-                  <label className="block text-xxs font-medium text-health-textMuted mb-1">Steps Count</label>
+                  <label className="block text-xxs font-medium text-slate-600 mb-1">Steps Count</label>
                   <input type="number" name="stepsCount" value={formData.stepsCount} onChange={handleInputChange} placeholder="e.g. 5000" className="w-full px-3 py-2 text-xs glass-input" required />
                 </div>
                 <div>
-                  <label className="block text-xxs font-medium text-health-textMuted mb-1">Active Exercise (Minutes)</label>
+                  <label className="block text-xxs font-medium text-slate-600 mb-1">Active Exercise (Minutes)</label>
                   <input type="number" name="activeMins" value={formData.activeMins} onChange={handleInputChange} placeholder="e.g. 30" className="w-full px-3 py-2 text-xs glass-input" required />
                 </div>
                 <div>
-                  <label className="block text-xxs font-medium text-health-textMuted mb-1">Sleep Duration (Hours)</label>
+                  <label className="block text-xxs font-medium text-slate-600 mb-1">Sleep Duration (Hours)</label>
                   <input type="number" step="0.5" name="sleepHours" value={formData.sleepHours} onChange={handleInputChange} placeholder="e.g. 8" className="w-full px-3 py-2 text-xs glass-input" required />
                 </div>
                 <div className="flex space-x-3 pt-3">
-                  <button type="button" onClick={() => setLogModalOpen(false)} className="flex-1 py-2 text-xs border border-white/5 bg-white/5 rounded-xl">Cancel</button>
-                  <button type="submit" disabled={logMutation.isPending} className="flex-1 py-2 text-xs font-semibold bg-gradient-to-r from-health-blue to-health-cyan rounded-xl hover:shadow-glow flex items-center justify-center">
+                  <button type="button" onClick={() => setLogModalOpen(false)} className="flex-1 py-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-medium">Cancel</button>
+                  <button type="submit" disabled={logMutation.isPending} className="flex-1 py-2 text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl hover:from-blue-700 hover:to-blue-600 shadow-xs flex items-center justify-center">
                     {logMutation.isPending ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <span>Save Logs</span>}
                   </button>
                 </div>
@@ -524,29 +673,29 @@ export default function DashboardPage() {
       <AnimatePresence>
         {reminderModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <div onClick={() => setReminderModalOpen(false)} className="absolute inset-0 bg-black opacity-50" />
-            <div className="w-full max-w-md glass-panel-glow p-6 rounded-2xl border-white/10 relative z-10">
-              <h3 className="font-display font-bold text-base mb-4 border-b border-white/5 pb-3">Add Smart Alarm Reminder</h3>
+            <div onClick={() => setReminderModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
+            <div className="w-full max-w-md bg-white p-6 rounded-2xl border border-slate-200 relative z-10 shadow-saas-lg">
+              <h3 className="font-display font-bold text-base mb-4 border-b border-slate-100 pb-3 text-slate-900">Add Smart Alarm Reminder</h3>
               <form onSubmit={handleReminderSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xxs font-medium text-health-textMuted mb-1">Reminder Title</label>
+                  <label className="block text-xxs font-medium text-slate-600 mb-1">Reminder Title</label>
                   <input type="text" name="title" value={reminderForm.title} onChange={(e) => setReminderForm({ ...reminderForm, title: e.target.value })} placeholder="e.g. Consume Atorvastatin Pill" className="w-full px-3 py-2 text-xs glass-input" required />
                 </div>
                 <div>
-                  <label className="block text-xxs font-medium text-health-textMuted mb-1">Alert Time</label>
+                  <label className="block text-xxs font-medium text-slate-600 mb-1">Alert Time</label>
                   <input type="time" name="time" value={reminderForm.time} onChange={(e) => setReminderForm({ ...reminderForm, time: e.target.value })} className="w-full px-3 py-2 text-xs glass-input" required />
                 </div>
                 <div>
-                  <label className="block text-xxs font-medium text-health-textMuted mb-1">Reminder Category</label>
-                  <select name="type" value={reminderForm.type} onChange={(e) => setReminderForm({ ...reminderForm, type: e.target.value })} className="w-full px-3 py-2 text-xs bg-health-dark border border-white/10 rounded-xl focus:outline-none" required>
+                  <label className="block text-xxs font-medium text-slate-600 mb-1">Reminder Category</label>
+                  <select name="type" value={reminderForm.type} onChange={(e) => setReminderForm({ ...reminderForm, type: e.target.value })} className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none text-slate-900" required>
                     <option value="WATER">Water / Hydration Goal</option>
                     <option value="MEDICINE">Medicine / Pharmacological Pill</option>
                     <option value="EXERCISE">Exercise / Cardio Routine</option>
                   </select>
                 </div>
                 <div className="flex space-x-3 pt-3">
-                  <button type="button" onClick={() => setReminderModalOpen(false)} className="flex-1 py-2 text-xs border border-white/5 bg-white/5 rounded-xl">Cancel</button>
-                  <button type="submit" disabled={reminderMutation.isPending} className="flex-1 py-2 text-xs font-semibold bg-gradient-to-r from-health-blue to-health-cyan rounded-xl hover:shadow-glow flex items-center justify-center">
+                  <button type="button" onClick={() => setReminderModalOpen(false)} className="flex-1 py-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-medium">Cancel</button>
+                  <button type="submit" disabled={reminderMutation.isPending} className="flex-1 py-2 text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl hover:from-blue-700 hover:to-blue-600 shadow-xs flex items-center justify-center">
                     {reminderMutation.isPending ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <span>Schedule Alert</span>}
                   </button>
                 </div>

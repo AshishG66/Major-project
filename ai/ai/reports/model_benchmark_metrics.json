@@ -1,0 +1,793 @@
+{
+  "framingham": {
+    "dataset_name": "Framingham Heart Study",
+    "best_model": "CatBoost",
+    "best_score": 0.3135,
+    "metrics": {
+      "model_name": "CatBoost",
+      "accuracy": 0.9833333333333333,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "roc_auc": 0.7837288135593221,
+      "false_negative_rate": 1.0,
+      "confusion_matrix": [
+        [
+          295,
+          0
+        ],
+        [
+          5,
+          0
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9833333333333333,
+          "recall": 1.0,
+          "f1-score": 0.9915966386554622,
+          "support": 295.0
+        },
+        "1": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 5.0
+        },
+        "accuracy": 0.9833333333333333,
+        "macro avg": {
+          "precision": 0.49166666666666664,
+          "recall": 0.5,
+          "f1-score": 0.4957983193277311,
+          "support": 300.0
+        },
+        "weighted avg": {
+          "precision": 0.9669444444444444,
+          "recall": 0.9833333333333333,
+          "f1-score": 0.9750700280112045,
+          "support": 300.0
+        }
+      },
+      "feature_importance": {
+        "age": 8.52628982458829,
+        "male": 8.574023672018475,
+        "currentSmoker": 2.201658571132956,
+        "cigsPerDay": 7.512915491670628,
+        "BPMeds": 0.0,
+        "prevalentStroke": 0.0,
+        "prevalentHyp": 3.2876904357774555,
+        "diabetes": 0.0,
+        "totChol": 8.934383985873945,
+        "sysBP": 8.987540449496537,
+        "diaBP": 5.1821157062954075,
+        "BMI": 8.177935155316263,
+        "heartRate": 8.306025762328348,
+        "glucose": 7.880069313177585,
+        "mean_arterial_pressure": 8.309566319228317,
+        "pulse_pressure": 7.309241883798822,
+        "cardiac_risk_interaction": 6.810543429296971
+      },
+      "training_time_sec": 0.5839,
+      "inference_time_ms": 5.92,
+      "inference_speed_per_sample_ms": 0.0197
+    },
+    "all_models": {
+      "Logistic Regression": {
+        "accuracy": 0.9833,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.7634,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.008,
+        "inference_time_ms": 1.89
+      },
+      "Decision Tree": {
+        "accuracy": 0.9733,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.5685,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.016,
+        "inference_time_ms": 2.31
+      },
+      "Random Forest": {
+        "accuracy": 0.9833,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.6007,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.342,
+        "inference_time_ms": 80.79
+      },
+      "Gradient Boosting": {
+        "accuracy": 0.98,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.718,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.672,
+        "inference_time_ms": 2.3
+      },
+      "XGBoost": {
+        "accuracy": 0.9833,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.6095,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.106,
+        "inference_time_ms": 6.35
+      },
+      "LightGBM": {
+        "accuracy": 0.9833,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.5763,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.081,
+        "inference_time_ms": 8.14
+      },
+      "CatBoost": {
+        "accuracy": 0.9833,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.7837,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.584,
+        "inference_time_ms": 5.92
+      },
+      "MLP Neural Network": {
+        "accuracy": 0.9833,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.7573,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.161,
+        "inference_time_ms": 4.6
+      }
+    }
+  },
+  "cardio_disease": {
+    "dataset_name": "Cardiovascular Disease (Kaggle)",
+    "best_model": "Decision Tree",
+    "best_score": 0.385,
+    "metrics": {
+      "model_name": "Decision Tree",
+      "accuracy": 0.962,
+      "precision": 0.25,
+      "recall": 0.13333333333333333,
+      "f1_score": 0.17391304347826086,
+      "roc_auc": 0.7219243986254296,
+      "false_negative_rate": 0.8666666666666667,
+      "confusion_matrix": [
+        [
+          479,
+          6
+        ],
+        [
+          13,
+          2
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9735772357723578,
+          "recall": 0.9876288659793815,
+          "f1-score": 0.9805527123848515,
+          "support": 485.0
+        },
+        "1": {
+          "precision": 0.25,
+          "recall": 0.13333333333333333,
+          "f1-score": 0.17391304347826086,
+          "support": 15.0
+        },
+        "accuracy": 0.962,
+        "macro avg": {
+          "precision": 0.6117886178861789,
+          "recall": 0.5604810996563574,
+          "f1-score": 0.5772328779315562,
+          "support": 500.0
+        },
+        "weighted avg": {
+          "precision": 0.951869918699187,
+          "recall": 0.962,
+          "f1-score": 0.9563535223176539,
+          "support": 500.0
+        }
+      },
+      "feature_importance": {
+        "age": 0.056857333539579336,
+        "gender": 0.025387514613651973,
+        "height": 0.1035925239826252,
+        "weight": 0.12351050495603953,
+        "bmi": 0.07671204377952202,
+        "ap_hi": 0.06681804401381376,
+        "ap_lo": 0.16859631905396724,
+        "cholesterol": 0.06565046318428404,
+        "gluc": 0.0,
+        "smoke": 0.0,
+        "alco": 0.0,
+        "active": 0.0,
+        "mean_arterial_pressure": 0.18103914630781395,
+        "pulse_pressure": 0.131836106568703
+      },
+      "training_time_sec": 0.0178,
+      "inference_time_ms": 1.35,
+      "inference_speed_per_sample_ms": 0.0027
+    },
+    "all_models": {
+      "Logistic Regression": {
+        "accuracy": 0.97,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.8543,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.008,
+        "inference_time_ms": 1.5
+      },
+      "Decision Tree": {
+        "accuracy": 0.962,
+        "precision": 0.25,
+        "recall": 0.1333,
+        "f1_score": 0.1739,
+        "roc_auc": 0.7219,
+        "false_negative_rate": 0.8667,
+        "train_time_sec": 0.018,
+        "inference_time_ms": 1.35
+      },
+      "Random Forest": {
+        "accuracy": 0.97,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.7542,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.327,
+        "inference_time_ms": 89.41
+      },
+      "Gradient Boosting": {
+        "accuracy": 0.97,
+        "precision": 0.5,
+        "recall": 0.0667,
+        "f1_score": 0.1176,
+        "roc_auc": 0.7131,
+        "false_negative_rate": 0.9333,
+        "train_time_sec": 0.916,
+        "inference_time_ms": 2.56
+      },
+      "XGBoost": {
+        "accuracy": 0.97,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.7699,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.15,
+        "inference_time_ms": 6.95
+      },
+      "LightGBM": {
+        "accuracy": 0.97,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.7522,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.171,
+        "inference_time_ms": 8.16
+      },
+      "CatBoost": {
+        "accuracy": 0.97,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.8463,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.424,
+        "inference_time_ms": 6.47
+      },
+      "MLP Neural Network": {
+        "accuracy": 0.97,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.3491,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.154,
+        "inference_time_ms": 5.07
+      }
+    }
+  },
+  "heart_failure": {
+    "dataset_name": "Heart Failure Clinical Records",
+    "best_model": "XGBoost",
+    "best_score": 0.6965,
+    "metrics": {
+      "model_name": "XGBoost",
+      "accuracy": 0.836,
+      "precision": 0.6274509803921569,
+      "recall": 0.5925925925925926,
+      "f1_score": 0.6095238095238096,
+      "roc_auc": 0.8353174603174605,
+      "false_negative_rate": 0.40740740740740744,
+      "confusion_matrix": [
+        [
+          177,
+          19
+        ],
+        [
+          22,
+          32
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.8894472361809045,
+          "recall": 0.9030612244897959,
+          "f1-score": 0.8962025316455696,
+          "support": 196.0
+        },
+        "1": {
+          "precision": 0.6274509803921569,
+          "recall": 0.5925925925925926,
+          "f1-score": 0.6095238095238096,
+          "support": 54.0
+        },
+        "accuracy": 0.836,
+        "macro avg": {
+          "precision": 0.7584491082865307,
+          "recall": 0.7478269085411942,
+          "f1-score": 0.7528631705846895,
+          "support": 250.0
+        },
+        "weighted avg": {
+          "precision": 0.832856044930535,
+          "recall": 0.836,
+          "f1-score": 0.8342799276672694,
+          "support": 250.0
+        }
+      },
+      "feature_importance": {
+        "age": 0.07024067640304565,
+        "anaemia": 0.05226422846317291,
+        "creatinine_phosphokinase": 0.05082534998655319,
+        "diabetes": 0.04710680618882179,
+        "ejection_fraction": 0.06030331924557686,
+        "high_blood_pressure": 0.055336736142635345,
+        "platelets": 0.05297769978642464,
+        "serum_creatinine": 0.1084013432264328,
+        "serum_sodium": 0.05409642308950424,
+        "sex": 0.04439324885606766,
+        "smoking": 0.07500546425580978,
+        "time": 0.09607617557048798,
+        "pumping_efficiency_index": 0.23297253251075745
+      },
+      "training_time_sec": 0.1249,
+      "inference_time_ms": 8.07,
+      "inference_speed_per_sample_ms": 0.0323
+    },
+    "all_models": {
+      "Logistic Regression": {
+        "accuracy": 0.832,
+        "precision": 0.6667,
+        "recall": 0.4444,
+        "f1_score": 0.5333,
+        "roc_auc": 0.8718,
+        "false_negative_rate": 0.5556,
+        "train_time_sec": 0.005,
+        "inference_time_ms": 1.67
+      },
+      "Decision Tree": {
+        "accuracy": 0.78,
+        "precision": 0.4894,
+        "recall": 0.4259,
+        "f1_score": 0.4554,
+        "roc_auc": 0.7265,
+        "false_negative_rate": 0.5741,
+        "train_time_sec": 0.009,
+        "inference_time_ms": 1.5
+      },
+      "Random Forest": {
+        "accuracy": 0.848,
+        "precision": 0.6905,
+        "recall": 0.537,
+        "f1_score": 0.6042,
+        "roc_auc": 0.866,
+        "false_negative_rate": 0.463,
+        "train_time_sec": 0.3,
+        "inference_time_ms": 79.72
+      },
+      "Gradient Boosting": {
+        "accuracy": 0.824,
+        "precision": 0.619,
+        "recall": 0.4815,
+        "f1_score": 0.5417,
+        "roc_auc": 0.8469,
+        "false_negative_rate": 0.5185,
+        "train_time_sec": 0.49,
+        "inference_time_ms": 2.57
+      },
+      "XGBoost": {
+        "accuracy": 0.836,
+        "precision": 0.6275,
+        "recall": 0.5926,
+        "f1_score": 0.6095,
+        "roc_auc": 0.8353,
+        "false_negative_rate": 0.4074,
+        "train_time_sec": 0.125,
+        "inference_time_ms": 8.07
+      },
+      "LightGBM": {
+        "accuracy": 0.816,
+        "precision": 0.5952,
+        "recall": 0.463,
+        "f1_score": 0.5208,
+        "roc_auc": 0.8348,
+        "false_negative_rate": 0.537,
+        "train_time_sec": 0.078,
+        "inference_time_ms": 10.06
+      },
+      "CatBoost": {
+        "accuracy": 0.824,
+        "precision": 0.625,
+        "recall": 0.463,
+        "f1_score": 0.5319,
+        "roc_auc": 0.864,
+        "false_negative_rate": 0.537,
+        "train_time_sec": 0.348,
+        "inference_time_ms": 7.01
+      },
+      "MLP Neural Network": {
+        "accuracy": 0.824,
+        "precision": 0.619,
+        "recall": 0.4815,
+        "f1_score": 0.5417,
+        "roc_auc": 0.8628,
+        "false_negative_rate": 0.5185,
+        "train_time_sec": 0.114,
+        "inference_time_ms": 3.33
+      }
+    }
+  },
+  "stroke_risk": {
+    "dataset_name": "Stroke Prediction Dataset",
+    "best_model": "Gradient Boosting",
+    "best_score": 0.3051,
+    "metrics": {
+      "model_name": "Gradient Boosting",
+      "accuracy": 0.9885714285714285,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "roc_auc": 0.7626445086705202,
+      "false_negative_rate": 1.0,
+      "confusion_matrix": [
+        [
+          346,
+          0
+        ],
+        [
+          4,
+          0
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9885714285714285,
+          "recall": 1.0,
+          "f1-score": 0.9942528735632183,
+          "support": 346.0
+        },
+        "1": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 4.0
+        },
+        "accuracy": 0.9885714285714285,
+        "macro avg": {
+          "precision": 0.4942857142857143,
+          "recall": 0.5,
+          "f1-score": 0.49712643678160917,
+          "support": 350.0
+        },
+        "weighted avg": {
+          "precision": 0.9772734693877551,
+          "recall": 0.9885714285714285,
+          "f1-score": 0.9828899835796387,
+          "support": 350.0
+        }
+      },
+      "feature_importance": {
+        "age": 0.46568030142747746,
+        "hypertension": 0.0,
+        "heart_disease": 0.0,
+        "avg_glucose_level": 0.25180280545322914,
+        "bmi": 0.16799395460305092,
+        "gender_Female": 0.0024356680778283447,
+        "gender_Male": 0.006057057166135452,
+        "ever_married_No": 0.0121836430854742,
+        "ever_married_Yes": 0.016721598287569632,
+        "work_type_Govt_job": 0.00045895236771596417,
+        "work_type_Never_worked": 0.00011027384438890844,
+        "work_type_Private": 0.002002535743934754,
+        "work_type_Self-employed": 0.00042038239582855165,
+        "work_type_children": 0.004276959044360125,
+        "Residence_type_Rural": 0.01567867058574155,
+        "Residence_type_Urban": 0.0009211241147626915,
+        "smoking_status_Unknown": 0.0023011852806345194,
+        "smoking_status_formerly smoked": 0.0003847526027684926,
+        "smoking_status_never smoked": 0.005011127147156597,
+        "smoking_status_smokes": 0.04555900877194269
+      },
+      "training_time_sec": 0.4879,
+      "inference_time_ms": 3.16,
+      "inference_speed_per_sample_ms": 0.009
+    },
+    "all_models": {
+      "Logistic Regression": {
+        "accuracy": 0.9886,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.7009,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.011,
+        "inference_time_ms": 3.24
+      },
+      "Decision Tree": {
+        "accuracy": 0.98,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.4783,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.008,
+        "inference_time_ms": 3.33
+      },
+      "Random Forest": {
+        "accuracy": 0.9886,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.5173,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.36,
+        "inference_time_ms": 93.9
+      },
+      "Gradient Boosting": {
+        "accuracy": 0.9886,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.7626,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.488,
+        "inference_time_ms": 3.16
+      },
+      "XGBoost": {
+        "accuracy": 0.9886,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.5542,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.096,
+        "inference_time_ms": 6.41
+      },
+      "LightGBM": {
+        "accuracy": 0.9857,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.6503,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.115,
+        "inference_time_ms": 8.18
+      },
+      "CatBoost": {
+        "accuracy": 0.9886,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.6329,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.559,
+        "inference_time_ms": 8.04
+      },
+      "MLP Neural Network": {
+        "accuracy": 0.9886,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.552,
+        "false_negative_rate": 1.0,
+        "train_time_sec": 0.182,
+        "inference_time_ms": 4.26
+      }
+    }
+  },
+  "ecg_analysis": {
+    "dataset_name": "PhysioNet ECG Features",
+    "best_model": "Random Forest",
+    "best_score": 0.9953,
+    "metrics": {
+      "model_name": "Random Forest",
+      "accuracy": 0.9933333333333333,
+      "precision": 0.9902345679012345,
+      "recall": 0.9933333333333333,
+      "f1_score": 0.9916734666361237,
+      "roc_auc": 0.9999400407722748,
+      "false_negative_rate": 0.00666666666666671,
+      "confusion_matrix": [
+        [
+          269,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          15,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          14,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9962962962962963,
+          "recall": 1.0,
+          "f1-score": 0.9981447124304267,
+          "support": 269.0
+        },
+        "1": {
+          "precision": 1.0,
+          "recall": 0.9375,
+          "f1-score": 0.967741935483871,
+          "support": 16.0
+        },
+        "2": {
+          "precision": 0.9333333333333333,
+          "recall": 1.0,
+          "f1-score": 0.9655172413793104,
+          "support": 14.0
+        },
+        "3": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 1.0
+        },
+        "accuracy": 0.9933333333333333,
+        "macro avg": {
+          "precision": 0.7324074074074074,
+          "recall": 0.734375,
+          "f1-score": 0.732850972323402,
+          "support": 300.0
+        },
+        "weighted avg": {
+          "precision": 0.9902345679012345,
+          "recall": 0.9933333333333333,
+          "f1-score": 0.9916734666361237,
+          "support": 300.0
+        }
+      },
+      "feature_importance": {
+        "rr_interval": 0.16287748833156745,
+        "heart_rate": 0.11604906840588053,
+        "pr_interval": 0.007802671748385568,
+        "qrs_duration": 0.16489695568948232,
+        "qt_interval": 0.006167997170611146,
+        "st_elevation": 0.452366885800859,
+        "p_wave_amp": 0.014069715766874076,
+        "t_wave_amp": 0.049560939049827744,
+        "ventricular_conduction_ratio": 0.026208278036512194
+      },
+      "training_time_sec": 0.3734,
+      "inference_time_ms": 136.01,
+      "inference_speed_per_sample_ms": 0.4534
+    },
+    "all_models": {
+      "Logistic Regression": {
+        "accuracy": 0.8967,
+        "precision": 0.8322,
+        "recall": 0.8967,
+        "f1_score": 0.8578,
+        "roc_auc": 0.7908,
+        "false_negative_rate": 0.1033,
+        "train_time_sec": 0.022,
+        "inference_time_ms": 5.41
+      },
+      "Decision Tree": {
+        "accuracy": 0.9967,
+        "precision": 0.9933,
+        "recall": 0.9967,
+        "f1_score": 0.995,
+        "roc_auc": 0.8705,
+        "false_negative_rate": 0.0033,
+        "train_time_sec": 0.015,
+        "inference_time_ms": 4.97
+      },
+      "Random Forest": {
+        "accuracy": 0.9933,
+        "precision": 0.9902,
+        "recall": 0.9933,
+        "f1_score": 0.9917,
+        "roc_auc": 0.9999,
+        "false_negative_rate": 0.0067,
+        "train_time_sec": 0.373,
+        "inference_time_ms": 136.01
+      },
+      "Gradient Boosting": {
+        "accuracy": 0.9967,
+        "precision": 0.9933,
+        "recall": 0.9967,
+        "f1_score": 0.995,
+        "roc_auc": 0.8784,
+        "false_negative_rate": 0.0033,
+        "train_time_sec": 2.901,
+        "inference_time_ms": 7.62
+      },
+      "XGBoost": {
+        "accuracy": 0.99,
+        "precision": 0.9904,
+        "recall": 0.99,
+        "f1_score": 0.9902,
+        "roc_auc": 0.9998,
+        "false_negative_rate": 0.01,
+        "train_time_sec": 0.278,
+        "inference_time_ms": 11.74
+      },
+      "LightGBM": {
+        "accuracy": 0.9833,
+        "precision": 0.9806,
+        "recall": 0.9833,
+        "f1_score": 0.9819,
+        "roc_auc": 0.9929,
+        "false_negative_rate": 0.0167,
+        "train_time_sec": 0.245,
+        "inference_time_ms": 16.81
+      },
+      "CatBoost": {
+        "accuracy": 0.9867,
+        "precision": 0.9834,
+        "recall": 0.9867,
+        "f1_score": 0.985,
+        "roc_auc": 0.9997,
+        "false_negative_rate": 0.0133,
+        "train_time_sec": 1.226,
+        "inference_time_ms": 10.16
+      },
+      "MLP Neural Network": {
+        "accuracy": 0.8967,
+        "precision": 0.804,
+        "recall": 0.8967,
+        "f1_score": 0.8478,
+        "roc_auc": 0.1801,
+        "false_negative_rate": 0.1033,
+        "train_time_sec": 0.168,
+        "inference_time_ms": 7.02
+      }
+    }
+  }
+}

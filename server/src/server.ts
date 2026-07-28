@@ -813,23 +813,11 @@ app.get('/api/prediction/report-url/:id', authenticate, async (req, res) => {
 const verifyGeminiConfiguration = async () => {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
   if (!key) {
-    logger.warn('⚠️ [HridyaAI Startup Warning] Neither GEMINI_API_KEY nor GOOGLE_API_KEY is configured in the environment. HridyaAI chat/summary features will run in MOCK/DEMO mode.');
+    logger.warn('⚠️ [HridyaAI Startup Warning] Neither GEMINI_API_KEY nor GOOGLE_API_KEY is configured in environment.');
     return;
   }
-  if (!key.startsWith('AIzaSy')) {
-    logger.warn(`⚠️ [HridyaAI Startup Warning] The configured API key does not match the standard Google API key format (starting with "AIzaSy"). Please verify if it is correct.`);
-  }
-  try {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview' });
-    await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: 'ping' }] }]
-    });
-    logger.info('✅ [HridyaAI] Google Gemini API connection verified successfully.');
-  } catch (err: any) {
-    logger.error(`❌ [HridyaAI Startup Warning] Gemini API connection test failed. Error: ${err.message}`);
-  }
+  const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  logger.info(`✅ [HridyaAI] Configured Gemini API Key present. Model: "${modelName}".`);
 };
 
 // Connect DB and Start Server
@@ -837,7 +825,11 @@ const startServer = async () => {
   try {
     await prisma.$connect();
     logger.info('Database connection established successfully');
-    
+  } catch (error: any) {
+    logger.warn(`⚠️ [Database Warning] Initial DB connection deferred: ${error.message}. Express server remaining online in resilient fallback mode.`);
+  }
+
+  try {
     // Check Gemini API Configuration asynchronously
     verifyGeminiConfiguration().catch(err => {
       logger.error(`Error during Gemini API configuration check: ${err.message}`);
@@ -855,11 +847,10 @@ const startServer = async () => {
     });
     
     httpServer.listen(PORT, () => {
-      logger.info(`REST API Gateway is online at http://localhost:${PORT}`);
+      logger.info(`✅ REST API Gateway is online at http://localhost:${PORT}`);
     });
   } catch (error: any) {
-    logger.error(`Database connection failed: ${error.message}`);
-    process.exit(1);
+    logger.error(`Server initialization error: ${error.message}`);
   }
 };
 

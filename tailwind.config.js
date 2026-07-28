@@ -9,16 +9,16 @@ export default {
     extend: {
       colors: {
         health: {
-          dark: '#080C14',       // Deep primary background
-          darker: '#04060A',     // Even darker background
-          card: '#111827',       // Core card background (semi-transparent glass)
-          border: '#1F2937',     // Premium sub-borders
-          textMuted: '#9CA3AF',  // Muted grey text
-          blue: '#3B82F6',       // Electric Blue
-          cyan: '#06B6D4',       // Cyan
-          emerald: '#10B981',    // Emerald Green
-          violet: '#8B5CF6',     // Violet Purple
-          rose: '#F43F5E',       // Rose Red
+          dark: '#FFFFFF',       // Clean white base
+          darker: '#F8FAFC',     // Clinical off-white base
+          card: '#FFFFFF',       // White glass card background
+          border: '#E2E8F0',     // Crisp light slate border
+          textMuted: '#64748B',  // Muted slate text
+          blue: '#3B82F6',       // Clinical Electric Blue
+          cyan: '#06B6D4',       // Soft Cyan
+          emerald: '#10B981',    // Emerald Success
+          violet: '#3B82F6',     // Mapped to Clinical Blue (no purple)
+          rose: '#EF4444',       // Soft Danger Red
           amber: '#F59E0B',      // Amber Accent
         }
       },
@@ -27,14 +27,16 @@ export default {
         manrope: ['Manrope', 'sans-serif'],
       },
       boxShadow: {
-        glow: '0 0 25px rgba(6, 182, 212, 0.15)',
-        'glow-blue': '0 0 25px rgba(59, 130, 246, 0.25)',
-        'glow-emerald': '0 0 25px rgba(16, 185, 129, 0.25)',
-        'glow-rose': '0 0 25px rgba(244, 63, 94, 0.25)',
+        glow: '0 4px 20px -2px rgba(59, 130, 246, 0.12)',
+        'glow-blue': '0 4px 25px rgba(59, 130, 246, 0.18)',
+        'glow-emerald': '0 4px 25px rgba(16, 185, 129, 0.18)',
+        'glow-rose': '0 4px 25px rgba(239, 68, 68, 0.18)',
+        saas: '0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05)',
+        'saas-lg': '0 10px 30px -5px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.03)',
       },
       backgroundImage: {
-        'aurora-glow': 'radial-gradient(circle at 50% -20%, rgba(59, 130, 246, 0.18), rgba(6, 182, 212, 0.08), rgba(0, 0, 0, 0))',
-        'card-gradient': 'linear-gradient(135deg, rgba(25, 30, 45, 0.7) 0%, rgba(17, 24, 39, 0.5) 100%)',
+        'aurora-glow': 'radial-gradient(circle at 50% -20%, rgba(59, 130, 246, 0.08), rgba(6, 182, 212, 0.04), rgba(255, 255, 255, 0))',
+        'card-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%)',
       }
     },
   },

@@ -50,3 +50,11 @@ server/.env.*
 # OS & Temp Artifacts
 Thumbs.db
 desktop.ini
+
+# Python Virtualenvs & Caches
+venv/
+ai/venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+catboost_info/

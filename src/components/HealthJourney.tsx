@@ -20,15 +20,15 @@ export default function HealthJourney() {
   ];
 
   return (
-    <div className="glass-panel p-6 rounded-2xl border-white/5 flex flex-col justify-between h-[310px] relative overflow-hidden flex-1">
+    <div className="glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col justify-between h-[310px] relative overflow-hidden flex-1">
       {/* Background Grid Accent */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff01_1px,transparent_1px)] bg-[size:3rem] pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000003_1px,transparent_1px)] bg-[size:3rem] pointer-events-none" />
 
       <div>
-        <h4 className="font-display font-bold text-xs uppercase tracking-wider text-health-textMuted mb-1">
+        <h4 className="font-display font-bold text-xs uppercase tracking-wider text-slate-500 mb-1">
           Patient Cardiorespiratory Recovery Roadmap
         </h4>
-        <p className="text-[9px] text-health-textMuted leading-relaxed font-light">
+        <p className="text-[9px] text-slate-500 leading-relaxed font-light">
           Milestones achieved along your digital twin diagnostic timeline.
         </p>
       </div>
@@ -37,12 +37,12 @@ export default function HealthJourney() {
       <div className="relative flex items-center justify-between py-12 px-2 z-10">
         
         {/* Animated Connecting Line behind nodes */}
-        <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-0.5 bg-white/5 z-0">
+        <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 z-0">
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: '60%' }} // maps to completed/current stages
             transition={{ duration: 1.5, ease: 'easeInOut' }}
-            className="h-full bg-gradient-to-r from-health-blue via-health-cyan to-health-emerald shadow-glow"
+            className="h-full bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500 shadow-xs"
           />
         </div>
 
@@ -59,9 +59,9 @@ export default function HealthJourney() {
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: idx * 0.12 }}
                 className={`h-9 w-9 rounded-full border flex items-center justify-center relative cursor-pointer ${
-                  isCompleted ? 'bg-health-blue/15 border-health-blue text-health-blue shadow-glow' :
-                  isCurrent ? 'bg-health-cyan/20 border-health-cyan text-health-cyan shadow-glow animate-pulse' :
-                  'bg-health-card/80 border-white/5 text-health-textMuted'
+                  isCompleted ? 'bg-blue-50 border-blue-600 text-blue-600 shadow-xs' :
+                  isCurrent ? 'bg-cyan-50 border-cyan-500 text-cyan-600 shadow-xs animate-pulse' :
+                  'bg-white border-slate-200 text-slate-400'
                 }`}
               >
                 {isCompleted ? (
@@ -72,20 +72,20 @@ export default function HealthJourney() {
 
                 {/* Pulsing halo around the current step */}
                 {isCurrent && (
-                  <span className="absolute inset-0 rounded-full border border-health-cyan animate-ping opacity-60" />
+                  <span className="absolute inset-0 rounded-full border border-cyan-500 animate-ping opacity-60" />
                 )}
               </motion.div>
 
               {/* Milestone texts */}
               <div className="mt-3.5 space-y-0.5">
                 <span className={`text-[9px] font-extrabold uppercase block tracking-wider ${
-                  isCompleted ? 'text-health-blue' :
-                  isCurrent ? 'text-health-cyan animate-pulse' :
-                  'text-health-textMuted'
+                  isCompleted ? 'text-blue-600' :
+                  isCurrent ? 'text-cyan-600 animate-pulse' :
+                  'text-slate-400'
                 }`}>
                   {step.label}
                 </span>
-                <span className="text-[7.5px] text-health-textMuted block font-light leading-snug whitespace-nowrap truncate max-w-[70px]">
+                <span className="text-[7.5px] text-slate-500 block font-light leading-snug whitespace-nowrap truncate max-w-[70px]">
                   {step.sub}
                 </span>
               </div>
@@ -94,9 +94,9 @@ export default function HealthJourney() {
         })}
       </div>
 
-      <div className="border-t border-white/5 pt-2.5 flex items-center justify-between text-[8px] text-health-textMuted">
+      <div className="border-t border-slate-100 pt-2.5 flex items-center justify-between text-[8px] text-slate-500">
         <span>Current phase: Milestone 4 (Improved BP stats)</span>
-        <span className="text-health-cyan font-bold">60% completed</span>
+        <span className="text-blue-600 font-bold">60% completed</span>
       </div>
     </div>
   );

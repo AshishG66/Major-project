@@ -173,17 +173,17 @@ export default function NearbyPage() {
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="flex items-center space-x-2">
           {isLocationDetected ? (
-            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase bg-health-emerald/15 text-health-emerald border border-health-emerald/30 shadow-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-health-emerald animate-ping" />
+            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-ping" />
               <span>📍 Live Position Detected</span>
             </span>
           ) : (
-            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase bg-health-amber/15 text-health-amber border border-health-amber/30">
+            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase bg-amber-50 text-amber-600 border border-amber-200 shadow-xs">
               <span>🔍 Custom Search Zone</span>
             </span>
           )}
 
-          <span className="text-xxs text-health-textMuted font-medium">
+          <span className="text-xxs text-slate-500 font-medium">
             {coords ? `[${coords[0].toFixed(3)}, ${coords[1].toFixed(3)}]` : ''}
           </span>
         </div>
@@ -198,7 +198,7 @@ export default function NearbyPage() {
       {/* Google API Notice Banner */}
       <ApiKeyNotice />
 
-      {/* ⭐ HridyaAI Recommendation Card (When Real Facilities Exist) */}
+      {/* ⭐ HridyaAI Recommendation Card */}
       {!isLoadingFacilities && filteredFacilities.length > 0 && (
         <AiRecommendationCard
           facilities={filteredFacilities}
@@ -236,18 +236,18 @@ export default function NearbyPage() {
 
       {/* Error Banners if API Key Missing or Quota Exceeded */}
       {apiErrorState === 'MISSING_KEY' && (
-        <div className="p-6 rounded-2xl bg-health-amber/10 border-2 border-health-amber/40 text-center space-y-3 max-w-2xl mx-auto shadow-glow">
-          <div className="h-12 w-12 rounded-2xl bg-health-amber/20 flex items-center justify-center text-health-amber mx-auto">
+        <div className="p-6 rounded-2xl bg-amber-50 border border-amber-200 text-center space-y-3 max-w-2xl mx-auto shadow-xs">
+          <div className="h-12 w-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600 mx-auto">
             <Key className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-display font-extrabold text-base text-white uppercase tracking-wider">
+            <h3 className="font-display font-extrabold text-base text-slate-900 uppercase tracking-wider">
               Google Maps API is not configured
             </h3>
-            <p className="text-xs text-white/80 font-light leading-relaxed">
-              Please configure <code className="bg-black/40 px-2 py-0.5 rounded text-health-cyan font-mono">VITE_GOOGLE_MAPS_API_KEY</code> in your environment file to load live Google Places cardiac care providers.
+            <p className="text-xs text-slate-600 font-light leading-relaxed">
+              Please configure <code className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-blue-600 font-mono">VITE_GOOGLE_MAPS_API_KEY</code> in your environment file to load live Google Places cardiac care providers.
             </p>
-            <p className="text-[10px] text-health-textMuted italic pt-1">
+            <p className="text-[10px] text-slate-500 italic pt-1">
               Zero fake or fabricated medical providers are displayed.
             </p>
           </div>
@@ -255,15 +255,15 @@ export default function NearbyPage() {
       )}
 
       {apiErrorState === 'QUOTA_EXCEEDED' && (
-        <div className="p-6 rounded-2xl bg-health-rose/10 border-2 border-health-rose/40 text-center space-y-3 max-w-2xl mx-auto shadow-glow-rose">
-          <div className="h-12 w-12 rounded-2xl bg-health-rose/20 flex items-center justify-center text-health-rose mx-auto">
+        <div className="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-3 max-w-2xl mx-auto shadow-xs">
+          <div className="h-12 w-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 mx-auto">
             <ShieldAlert className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-display font-extrabold text-base text-white uppercase tracking-wider">
+            <h3 className="font-display font-extrabold text-base text-slate-900 uppercase tracking-wider">
               Unable to fetch nearby healthcare providers
             </h3>
-            <p className="text-xs text-white/80 font-light leading-relaxed">
+            <p className="text-xs text-slate-600 font-light leading-relaxed">
               Google Places API limit was reached or network request failed. Please try again later.
             </p>
           </div>
@@ -281,9 +281,9 @@ export default function NearbyPage() {
               onUseManualSearch={() => handleManualSearch('New Delhi', '110001')}
             />
           ) : (
-            <div className="flex flex-col items-center space-y-4 p-8 glass-panel rounded-2xl max-w-sm">
-              <Loader2 className="h-10 w-10 text-health-cyan animate-spin" />
-              <p className="text-xs text-health-textMuted uppercase font-bold tracking-widest text-center">
+            <div className="flex flex-col items-center space-y-4 p-8 glass-panel bg-white/80 border border-slate-200/80 rounded-2xl max-w-sm shadow-sm">
+              <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+              <p className="text-xs text-slate-500 uppercase font-bold tracking-widest text-center">
                 Acquiring GPS Satellite Coordinates...
               </p>
             </div>
@@ -292,8 +292,8 @@ export default function NearbyPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-270px)] min-h-[520px] overflow-hidden items-stretch">
           
-          {/* LEFT PANEL: Interactive Google Map Canvas */}
-          <div className="lg:col-span-7 xl:col-span-8 rounded-2xl overflow-hidden h-full z-10 border border-white/5 relative shadow-glow">
+          {/* LEFT PANEL: Interactive Map Canvas */}
+          <div className="lg:col-span-7 xl:col-span-8 rounded-2xl overflow-hidden h-full z-10 border border-slate-200/80 relative shadow-sm">
             <NearbyMap
               center={coords}
               doctors={filteredFacilities}
@@ -304,18 +304,18 @@ export default function NearbyPage() {
           </div>
 
           {/* RIGHT PANEL: Scrollable Facility Cards List */}
-          <div className="lg:col-span-5 xl:col-span-4 flex flex-col h-full bg-[#0f172a]/60 backdrop-blur-md rounded-2xl border border-white/5 overflow-hidden">
+          <div className="lg:col-span-5 xl:col-span-4 flex flex-col h-full bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
             
             {/* List Header */}
-            <div className="px-5 py-3.5 border-b border-white/5 bg-black/30 flex justify-between items-center shrink-0">
+            <div className="px-5 py-3.5 border-b border-slate-200/80 bg-slate-50 flex justify-between items-center shrink-0">
               <div className="flex items-center space-x-2">
-                <h3 className="font-display font-extrabold text-xs uppercase tracking-wider text-white">
+                <h3 className="font-display font-extrabold text-xs uppercase tracking-wider text-slate-900">
                   Real Facilities ({filteredFacilities.length})
                 </h3>
-                {isLoadingFacilities && <Loader2 className="h-3 w-3 text-health-cyan animate-spin" />}
+                {isLoadingFacilities && <Loader2 className="h-3 w-3 text-blue-600 animate-spin" />}
               </div>
 
-              <span className="text-[9px] bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/70 font-bold uppercase">
+              <span className="text-[9px] bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-bold uppercase shadow-xs">
                 {radius} km zone
               </span>
             </div>
@@ -326,12 +326,12 @@ export default function NearbyPage() {
                 <LoadingSkeleton />
               ) : filteredFacilities.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-4 my-auto">
-                  <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center text-health-textMuted">
+                  <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                     <AlertCircle className="h-6 w-6" />
                   </div>
                   <div className="space-y-1 max-w-xs">
-                    <h4 className="text-xs font-bold text-white uppercase">No Healthcare Providers Found</h4>
-                    <p className="text-xxs text-health-textMuted italic leading-relaxed">
+                    <h4 className="text-xs font-bold text-slate-900 uppercase">No Healthcare Providers Found</h4>
+                    <p className="text-xxs text-slate-500 italic leading-relaxed">
                       {apiErrorState === 'MISSING_KEY'
                         ? 'Google Maps API is not configured. Configure VITE_GOOGLE_MAPS_API_KEY to view real cardiac providers.'
                         : `No providers matched your filter criteria within ${radius} km.`}
@@ -342,7 +342,7 @@ export default function NearbyPage() {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => setRadius(50)}
-                        className="px-3.5 py-2 border border-health-cyan/30 bg-health-cyan/15 hover:bg-health-cyan/25 text-[9.5px] uppercase font-bold rounded-xl text-health-cyan transition-all"
+                        className="px-3.5 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[9.5px] uppercase font-bold rounded-xl text-blue-600 transition-all shadow-xs"
                       >
                         Expand Radius to 50 km
                       </button>
@@ -353,7 +353,7 @@ export default function NearbyPage() {
                           setFilterRating(0);
                           setFilterOpenNow(false);
                         }}
-                        className="px-3 py-2 border border-white/10 bg-white/5 hover:bg-white/10 text-[9.5px] uppercase font-bold rounded-xl text-white transition-all"
+                        className="px-3 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-[9.5px] uppercase font-bold rounded-xl text-slate-700 transition-all shadow-xs"
                       >
                         Reset Filters
                       </button>
