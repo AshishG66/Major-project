@@ -19,6 +19,7 @@ const NearbyPage = lazy(() => import('../pages/NearbyPage'));
 const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage'));
 const DoctorPortalPage = lazy(() => import('../pages/DoctorPortalPage'));
 const AdminPortalPage = lazy(() => import('../pages/AdminPortalPage'));
+const DigitalTwinPage = lazy(() => import('../pages/DigitalTwinPage'));
 
 import CustomCursor from '../components/CustomCursor';
 
@@ -81,6 +82,7 @@ export default function App() {
               <Route path="prevention" element={<PreventionPage />} />
               <Route path="nearby" element={<NearbyPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="digital-twin" element={<DigitalTwinPage />} />
               
               {/* Portals */}
               <Route 

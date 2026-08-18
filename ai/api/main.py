@@ -245,3 +245,122 @@ def get_model_metrics():
             data = json.load(f)
         return data
     return {"message": "Metrics report not generated yet. Run pipeline training first."}
+
+
+# ── Digital Twin Endpoints ──────────────────────────────────────────────────
+
+from digital_twin.state_vector import StateVectorManager, DIM_NAMES, DIM_UNITS, NORMAL_RANGES
+from digital_twin.mace_predictor import HybridMACEPredictor
+from digital_twin.simulator import CardiovascularSimulator
+
+# In-memory patient state managers
+_patient_states: Dict[str, StateVectorManager] = {}
+_mace_predictor = HybridMACEPredictor()
+
+
+class DigitalTwinInitRequest(BaseModel):
+    patient_id: str = Field(default="demo_patient", example="demo_patient")
+    profile: str = Field(default="moderate_risk", description="healthy | moderate_risk | high_risk")
+    demographics: Optional[Dict[str, float]] = None
+    labs: Optional[Dict[str, float]] = None
+    wearable: Optional[Dict[str, float]] = None
+
+
+class DigitalTwinUpdateRequest(BaseModel):
+    patient_id: str = Field(default="demo_patient")
+    observations: Dict[str, float] = Field(..., example={"heart_rate": 76, "spo2": 97})
+
+
+@app.post("/digital-twin/initialize")
+def initialize_digital_twin(request: DigitalTwinInitRequest):
+    """Initialize a patient's digital twin state vector."""
+    pid = request.patient_id
+
+    # Create simulator for initial data if not provided
+    sim = CardiovascularSimulator(request.profile)
+
+    demographics = request.demographics or sim.generate_demographics()
+    labs = request.labs or sim.generate_lab_results()
+    wearable = request.wearable or sim.generate_wearable_reading()
+
+    manager = StateVectorManager(pid)
+    manager.initialize(demographics, labs, wearable)
+
+    # Pre-populate with simulated history (6 hours = 72 ticks)
+    history_readings = sim.generate_history(72)
+    for reading in history_readings:
+        manager.update(reading)
+
+    _patient_states[pid] = manager
+
+    # Run initial MACE prediction
+    current = manager.get_current_state()
+    mace_result = _mace_predictor.predict(current, manager.history)
+
+    return {
+        "status": "initialized",
+        "patient_id": pid,
+        "profile": request.profile,
+        "state_summary": manager.get_state_summary(),
+        "mace_prediction": mace_result.to_dict(),
+        "history_length": len(manager.history),
+    }
+
+
+@app.post("/digital-twin/update")
+def update_digital_twin(request: DigitalTwinUpdateRequest):
+    """Push new wearable/lab observations and trigger EKF update."""
+    pid = request.patient_id
+    if pid not in _patient_states:
+        raise HTTPException(status_code=404, detail=f"Patient {pid} not initialized. Call /digital-twin/initialize first.")
+
+    manager = _patient_states[pid]
+    snapshot = manager.update(request.observations)
+
+    # Re-run MACE prediction
+    mace_result = _mace_predictor.predict(snapshot, manager.history)
+
+    return {
+        "status": "updated",
+        "patient_id": pid,
+        "state_summary": manager.get_state_summary(),
+        "mace_prediction": mace_result.to_dict(),
+    }
+
+
+@app.get("/digital-twin/state/{patient_id}")
+def get_digital_twin_state(patient_id: str, history_length: int = 72):
+    """Get current state vector and recent history."""
+    if patient_id not in _patient_states:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found.")
+
+    manager = _patient_states[patient_id]
+    current = manager.get_current_state()
+
+    mace_result = _mace_predictor.predict(current, manager.history)
+
+    return {
+        "patient_id": patient_id,
+        "state_summary": manager.get_state_summary(),
+        "mace_prediction": mace_result.to_dict(),
+        "history": manager.get_history(history_length),
+        "dim_names": DIM_NAMES,
+        "dim_units": DIM_UNITS,
+        "normal_ranges": {name: list(NORMAL_RANGES[name]) for name in DIM_NAMES},
+    }
+
+
+@app.post("/digital-twin/predict-mace")
+def predict_mace(patient_id: str = "demo_patient"):
+    """Run hybrid XGBoost-LSTM MACE prediction on current state."""
+    if patient_id not in _patient_states:
+        raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found.")
+
+    manager = _patient_states[patient_id]
+    current = manager.get_current_state()
+    result = _mace_predictor.predict(current, manager.history)
+
+    return {
+        "patient_id": patient_id,
+        "prediction": result.to_dict(),
+    }

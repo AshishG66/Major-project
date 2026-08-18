@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Home, Activity, MessageSquare, Shield, MapPin, BarChart3, LogOut, Menu, X, Bell, Clipboard, ShieldAlert, Sparkles, UserCheck, RefreshCw } from 'lucide-react';
+import { Heart, Home, Activity, MessageSquare, Shield, MapPin, BarChart3, LogOut, Menu, X, Bell, Clipboard, ShieldAlert, Sparkles, UserCheck, RefreshCw, Cpu } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWebSockets } from '../../hooks/useWebSockets';
 import { useQueryClient } from '@tanstack/react-query';
@@ -114,6 +114,7 @@ export default function DashboardLayout() {
     { name: 'Prevention Coach', path: '/prevention', icon: Shield },
     { name: 'Nearby Services', path: '/nearby', icon: MapPin },
     { name: 'Health Analytics', path: '/analytics', icon: BarChart3 },
+    { name: 'Digital Twin', path: '/digital-twin', icon: Cpu },
   ];
 
   // Dynamically append portal navigation items based on User Role
