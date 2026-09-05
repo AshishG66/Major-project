@@ -21,6 +21,7 @@ import { initDataRetentionScheduler, runDataRetentionCleanup, getRetentionStatus
 // Routers
 import authRouter from './auth/auth.router.js';
 import predictionRouter from './prediction/prediction.router.js';
+import { getAiServiceUrl } from './prediction/prediction.controller.js';
 import chatRouter from './chat/chat.router.js';
 import mapsRouter from './maps/maps.router.js';
 import sensorDataRouter from './sensorData/sensorData.router.js';
@@ -695,8 +696,8 @@ const healthCheckHandler = async (req: express.Request, res: express.Response) =
 
   let aiStatus = 'offline';
   try {
-    const aiUrl = process.env.AI_SERVICE_URL || process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
-    const response = await fetch(`${aiUrl}/health`, { signal: AbortSignal.timeout(2000) });
+    const aiUrl = getAiServiceUrl();
+    const response = await fetch(`${aiUrl}/health`, { signal: AbortSignal.timeout(3000) });
     if (response.ok) aiStatus = 'online';
   } catch {}
 

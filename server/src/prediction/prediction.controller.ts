@@ -10,14 +10,21 @@ import { updateDigitalTwinState } from '../services/digitalTwinService.js';
 import { checkAndTriggerAlerts } from '../services/alertService.js';
 
 export const getAiServiceUrl = () => {
-  let url = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+  const envUrl = process.env.AI_SERVICE_URL || process.env.FASTAPI_URL;
+  if (!envUrl || envUrl === 'http://localhost:8000' || envUrl === 'http://127.0.0.1:8000') {
+    return process.env.NODE_ENV === 'production' 
+      ? 'https://hridayadarpana-ai.onrender.com' 
+      : (envUrl || 'http://127.0.0.1:8000');
+  }
+  if (envUrl === 'hridayadarpana-ai' || envUrl === 'http://hridayadarpana-ai') {
+    return 'https://hridayadarpana-ai.onrender.com';
+  }
+  let url = envUrl;
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = `http://${url}`;
+    url = `https://${url}`;
   }
   return url.endsWith('/') ? url.slice(0, -1) : url;
 };
-
-const AI_SERVICE_URL = getAiServiceUrl();
 
 const predictionInputSchema = z.object({
   age: z.number().int().nonnegative(),
@@ -171,12 +178,13 @@ export const createPrediction = async (req: Request, res: Response) => {
       stressLevel: factors.stressLevel,
     };
 
-    logger.info(`[Step 2 - Dispatch to AI ML Engine] Sending request to ${AI_SERVICE_URL}/predict`);
+    const aiServiceUrl = getAiServiceUrl();
+    logger.info(`[Step 2 - Dispatch to AI ML Engine] Sending request to ${aiServiceUrl}/predict`);
     
     // Call FastAPI /predict with Clinical Risk Fallback
     let predictionRes: any;
     try {
-      const response = await fetch(`${AI_SERVICE_URL}/predict`, {
+      const response = await fetch(`${aiServiceUrl}/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fastApiPayload),
@@ -190,14 +198,14 @@ export const createPrediction = async (req: Request, res: Response) => {
       predictionRes = await response.json();
       logger.info(`[Step 3 - ML Prediction Generated] RiskScore: ${predictionRes.riskScore}%, RiskLevel: ${predictionRes.riskLevel}, Model: ${predictionRes.modelVersion || 'v2.1'}`);
     } catch (err: any) {
-      logger.warn(`AI microservice unreachable on ${AI_SERVICE_URL} (${err.message}). Engaging HridyaDarpan Clinical Risk Engine fallback.`);
+      logger.warn(`AI microservice unreachable on ${aiServiceUrl} (${err.message}). Engaging HridyaDarpan Clinical Risk Engine fallback.`);
       predictionRes = calculateClinicalFallbackRisk(factors, bmi);
     }
 
     // Call FastAPI /recommendations
     let recommendationRes: any;
     try {
-      const response = await fetch(`${AI_SERVICE_URL}/recommendations`, {
+      const response = await fetch(`${aiServiceUrl}/recommendations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
