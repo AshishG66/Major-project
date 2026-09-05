@@ -669,25 +669,48 @@ app.post('/api/notifications/read', authenticate, async (req, res) => {
   }
 });
 
-// Health diagnostics check
-app.get('/api/health', async (req, res) => {
-  try {
-    await prisma.$executeRaw`SELECT 1`;
-    let aiStatus = 'offline';
-    try {
-      const response = await fetch(`${process.env.AI_SERVICE_URL || 'http://localhost:8000'}/health`);
-      if (response.ok) aiStatus = 'online';
-    } catch {}
-    res.status(200).json({
-      status: 'healthy',
-      database: 'connected',
-      aiService: aiStatus,
-      timestamp: new Date()
-    });
-  } catch (error: any) {
-    res.status(500).json({ status: 'unhealthy', error: error.message });
-  }
+// Root discovery endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'HridayaDarpana API Gateway',
+    version: '1.0.0',
+    health: '/api/health',
+    docs: '/api/docs',
+    timestamp: new Date().toISOString()
+  });
 });
+
+// Health diagnostics check (lightweight, resilient, non-blocking)
+const healthCheckHandler = async (req: express.Request, res: express.Response) => {
+  let dbStatus = 'disconnected';
+  try {
+    const dbPromise = prisma.$queryRaw`SELECT 1 as ping`;
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500));
+    await Promise.race([dbPromise, timeoutPromise]);
+    dbStatus = 'connected';
+  } catch (dbErr: any) {
+    dbStatus = dbErr?.message === 'timeout' ? 'connecting' : `degraded: ${dbErr?.message || 'error'}`;
+  }
+
+  let aiStatus = 'offline';
+  try {
+    const aiUrl = process.env.AI_SERVICE_URL || process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
+    const response = await fetch(`${aiUrl}/health`, { signal: AbortSignal.timeout(2000) });
+    if (response.ok) aiStatus = 'online';
+  } catch {}
+
+  res.status(200).json({
+    status: 'healthy',
+    gateway: 'online',
+    database: dbStatus,
+    aiService: aiStatus,
+    timestamp: new Date().toISOString()
+  });
+};
+
+app.get('/api/health', healthCheckHandler);
+app.get('/health', healthCheckHandler);
 
 // Custom interactive Swagger-style REST docs
 app.get('/api/docs', (req, res) => {
