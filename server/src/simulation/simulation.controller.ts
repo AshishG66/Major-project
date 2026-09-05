@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { logger } from '../config/logger.js';
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+import { getAiServiceUrl } from '../prediction/prediction.controller.js';
+
+const AI_SERVICE_URL = getAiServiceUrl();
 
 function calculateSimulatedRisk(factors: any, modifiedFactor: string, modifiedValue: number) {
   const modFactors = { ...factors, [modifiedFactor]: modifiedValue };

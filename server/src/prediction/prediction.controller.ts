@@ -9,7 +9,15 @@ import { createAuditLogEntry } from '../services/hashChainService.js';
 import { updateDigitalTwinState } from '../services/digitalTwinService.js';
 import { checkAndTriggerAlerts } from '../services/alertService.js';
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+export const getAiServiceUrl = () => {
+  let url = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `http://${url}`;
+  }
+  return url.endsWith('/') ? url.slice(0, -1) : url;
+};
+
+const AI_SERVICE_URL = getAiServiceUrl();
 
 const predictionInputSchema = z.object({
   age: z.number().int().nonnegative(),
