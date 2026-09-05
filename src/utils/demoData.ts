@@ -838,6 +838,146 @@ export async function handleDemoRequest(endpoint: string, options: any = {}): Pr
     };
   }
 
+  // 20. GET /digital-twin
+  if (endpoint.startsWith('/digital-twin')) {
+    return {
+      success: true,
+      digitalTwin: {
+        id: 'twin-demo-1',
+        userId: activePatient.id,
+        heartRate: activePatient.factors.heartRate,
+        hrv: 48.5,
+        systolicBP: activePatient.factors.systolicBP,
+        diastolicBP: activePatient.factors.diastolicBP,
+        spo2: 98.5,
+        activityMins: activePatient.factors.exerciseFrequency * 30,
+        sleepHours: activePatient.factors.sleepDuration,
+        ecgStatus: activePatient.factors.ecgResult,
+        riskScore: activePatient.healthScore ? (100 - activePatient.healthScore) : 25.0,
+        riskLevel: activePatient.riskLevel,
+        dataQuality: 'HIGH',
+        confidenceScore: 0.95,
+        isSimulated: false,
+        lastUpdated: new Date().toISOString(),
+      }
+    };
+  }
+
+  // 21. GET /alerts
+  if (endpoint.startsWith('/alerts')) {
+    return {
+      success: true,
+      alerts: [
+        {
+          id: 'alert-demo-1',
+          level: activePatient.riskLevel === 'HIGH' ? 'HIGH' : 'MODERATE',
+          title: activePatient.riskLevel === 'HIGH' ? 'Elevated Systolic Blood Pressure Warning' : 'Moderate Cardio Advisory',
+          message: `Patient exhibits ${activePatient.factors.systolicBP} mmHg systolic blood pressure reading.`,
+          status: 'TRIGGERED',
+          createdAt: new Date().toISOString(),
+        }
+      ]
+    };
+  }
+
+  // 22. GET & POST /audit
+  if (endpoint.startsWith('/audit')) {
+    if (endpoint.includes('/verify')) {
+      return {
+        success: true,
+        verification: {
+          status: 'VALID',
+          totalLogs: activePatient.logs?.length || 12,
+          message: 'Successfully verified tamper-evident integrity across all SHA-256 blocks.',
+        }
+      };
+    }
+    return {
+      success: true,
+      logs: [
+        {
+          id: 'audit-demo-1',
+          action: 'EXECUTE_CARDIAC_PREDICTION',
+          eventType: 'RUN_PREDICTION',
+          details: `Executed multi-horizon prediction for ${activePatient.name}. Risk: ${activePatient.riskLevel} (${activePatient.factors.systolicBP} mmHg).`,
+          previousHash: 'GENESIS_BLOCK_00000000000000000000000000000000',
+          currentHash: 'c8f9a2b13e4f506a78901234567890abcdef1234567890abcdef1234567890ab',
+          createdAt: new Date().toISOString(),
+        }
+      ]
+    };
+  }
+
+  // 23. GET /models
+  if (endpoint.startsWith('/models')) {
+    return {
+      success: true,
+      models: [
+        { name: 'XGBoost & LightGBM Multi-Model Ensemble', version: 'v2.1-ClinicalEnsemble', modelType: 'Multi-Model Ensemble', rocAuc: 0.961, f1Score: 0.938, status: 'ACTIVE' },
+        { name: 'Framingham Heart Risk Model', version: 'v2.0-FraminghamLightGBM', modelType: 'LightGBM Classifier', rocAuc: 0.938, f1Score: 0.908, status: 'ACTIVE' },
+        { name: 'PhysioNet ECG Arrhythmia Detector', version: 'v1.9-PhysioNetRandomForest', modelType: 'Random Forest', rocAuc: 0.945, f1Score: 0.921, status: 'ACTIVE' },
+      ]
+    };
+  }
+
+  // 24. GET /devices
+  if (endpoint.startsWith('/devices')) {
+    return {
+      success: true,
+      devices: [
+        { id: 'dev-1', name: 'Apple Watch Series 9', deviceType: 'SMARTWATCH', deviceIdentifier: 'DEV-AW9-84920', status: 'ACTIVE', lastSeen: new Date().toISOString() },
+        { id: 'dev-2', name: 'KardiaMobile 6L ECG', deviceType: 'ECG_MONITOR', deviceIdentifier: 'DEV-KM6-10492', status: 'ACTIVE', lastSeen: new Date().toISOString() },
+      ]
+    };
+  }
+
+  // 25. POST /risk/simulate
+  if (endpoint.startsWith('/risk/simulate')) {
+    return {
+      success: true,
+      originalRisk: 28,
+      modifiedRisk: 19,
+      delta: -9,
+      explanation: 'Modifying systolic blood pressure to 120 mmHg reduces predicted cardiovascular risk by 9 percentage points.',
+      impact: 'improvement'
+    };
+  }
+
+  // 26. GET /analytics
+  if (endpoint.startsWith('/analytics')) {
+    return {
+      success: true,
+      analytics: {
+        summary: { totalCohortCount: 1240, totalPredictionsGenerated: 4890, totalAlertsTriggered: 340 },
+        riskDistribution: { HIGH: 280, MODERATE: 450, LOW: 510 }
+      }
+    };
+  }
+
+  // 27. GET & POST /admin/retention
+  if (endpoint.startsWith('/admin/retention')) {
+    if (endpoint.endsWith('/run')) {
+      return {
+        success: true,
+        result: {
+          sensorDataDeleted: 0,
+          digitalTwinDeleted: 0,
+          auditLogsDeleted: 0,
+          cleanedAt: new Date().toISOString(),
+        }
+      };
+    }
+    return {
+      success: true,
+      status: {
+        retentionConfig: { sensorDataDays: 90, digitalTwinDays: 180, auditLogDays: 730 },
+        lastCleanupAt: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
+        nextScheduledCleanupAt: new Date(Date.now() + 12 * 3600 * 1000).toISOString(),
+        lastCleanupResult: { sensorDataDeleted: 0, digitalTwinDeleted: 0, auditLogsDeleted: 0 }
+      }
+    };
+  }
+
   // Fallback
   return { success: true };
 }

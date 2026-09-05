@@ -115,6 +115,11 @@ class SocketService {
     return true;
   }
 
+  // Alias for emitToUser
+  emitToUser(userId: string, type: string, payload: any): boolean {
+    return this.sendToUser(userId, type, payload);
+  }
+
   // Broadcast packet to everyone online
   broadcast(type: string, payload: any) {
     if (!this.wss) return;

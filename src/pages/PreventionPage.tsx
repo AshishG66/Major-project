@@ -27,30 +27,30 @@ export default function PreventionPage() {
   const exerciseData = latest?.exercisePlan ? JSON.parse(JSON.stringify(latest.exercisePlan.planData)) : [];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 font-sans">
       
       {/* Banner */}
-      <div className="glass-panel p-6 rounded-2xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0 border border-slate-200/80 bg-white/80 shadow-sm">
+      <div className="bg-white p-6 rounded-2xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0 border border-[#c3c5d9] shadow-stitch">
         <div>
-          <span className="text-xxs font-semibold uppercase tracking-wider text-slate-500">HridayaDarpana Preventive Care</span>
-          <h2 className="text-xl font-display font-extrabold tracking-tight mt-0.5 text-slate-900">Cardiovascular Prevention Coach</h2>
-          <p className="text-xs text-slate-600 mt-1 max-w-xl font-light">
+          <span className="text-[10px] font-mono-data font-bold uppercase tracking-wider text-[#0052ff]">HridayaDarpana Preventive Care</span>
+          <h2 className="text-xl font-geist font-bold tracking-tight mt-0.5 text-[#0b1c30]">Cardiovascular Prevention Coach</h2>
+          <p className="text-xs font-inter text-[#434656] mt-1 max-w-xl">
             AI-generated preventive prescriptions covering clean nutrition, cardiorespiratory endurance workouts, and vascular lifestyle habits.
           </p>
         </div>
-        <div className="h-12 w-12 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+        <div className="h-12 w-12 rounded-2xl bg-[#eff4ff] text-[#005a3c] border border-[#005a3c]/30 flex items-center justify-center shrink-0 shadow-sm">
           <Shield className="h-6 w-6" />
         </div>
       </div>
 
       {!hasPrediction ? (
-        <div className="glass-panel p-8 rounded-2xl text-center border border-slate-200/80 bg-white/80 shadow-sm py-16">
-          <Heart className="h-12 w-12 text-rose-400 mx-auto mb-4" />
-          <h3 className="font-display font-bold text-base mb-2 text-slate-900">No Preventive Coach Active</h3>
-          <p className="text-xs text-slate-600 max-w-sm mx-auto mb-6 leading-relaxed font-light">
+        <div className="bg-white p-8 rounded-2xl text-center border border-[#c3c5d9] shadow-stitch py-16">
+          <Heart className="h-12 w-12 text-[#ba1a1a] mx-auto mb-4 animate-pulse" />
+          <h3 className="font-geist font-bold text-base mb-2 text-[#0b1c30]">No Preventive Coach Active</h3>
+          <p className="text-xs font-inter text-[#737688] max-w-sm mx-auto mb-6 leading-relaxed">
             Before we can formulate diet targets and aerobic workout schedules, we need to assess your risk factors. Complete a predictive diagnostic scan first.
           </p>
-          <Link to="/prediction" className="px-5 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-xs font-semibold text-white hover:from-blue-700 hover:to-blue-600 shadow-xs transition-all">
+          <Link to="/prediction" className="px-6 py-3 rounded-xl bg-[#0052ff] hover:bg-[#003ec7] text-xs font-geist font-bold text-white shadow-md transition-all inline-block">
             Start Diagnostic Scan
           </Link>
         </div>
@@ -59,34 +59,36 @@ export default function PreventionPage() {
           
           {/* Diet Planner Cards */}
           <div className="lg:col-span-6 space-y-5">
-            <div className="glass-panel p-6 rounded-2xl relative border border-slate-200/80 bg-white/80 shadow-sm">
-              <div className="flex items-center space-x-3 mb-6 pb-3 border-b border-slate-100">
-                <Apple className="h-5 w-5 text-rose-500" />
-                <h3 className="font-display font-bold text-sm text-slate-900">Cardiac Nutrition Diet Plans</h3>
+            <div className="bg-white p-6 rounded-2xl relative border border-[#c3c5d9] shadow-stitch">
+              <div className="flex items-center space-x-3 mb-6 pb-3 border-b border-[#e5eeff]">
+                <div className="p-2 rounded-xl bg-[#ffdad6] text-[#ba1a1a]">
+                  <Apple className="h-5 w-5" />
+                </div>
+                <h3 className="font-geist font-bold text-sm text-[#0b1c30]">Cardiac Nutrition Diet Plans</h3>
               </div>
 
               <div className="space-y-4">
                 {Array.isArray(dietData) && dietData.map((item: string, idx: number) => (
-                  <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-light leading-relaxed flex items-start space-x-2.5">
-                    <span className="h-4.5 w-4.5 rounded bg-rose-100 text-rose-600 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{idx + 1}</span>
-                    <p className="text-slate-800">{item}</p>
+                  <div key={idx} className="p-3.5 rounded-xl bg-[#f8f9ff] border border-[#e5eeff] text-xs font-inter text-[#0b1c30] leading-relaxed flex items-start space-x-2.5">
+                    <span className="h-5 w-5 rounded bg-[#ffdad6] text-[#93000a] flex items-center justify-center text-[10px] font-mono-data font-bold shrink-0 mt-0.5">{idx + 1}</span>
+                    <p className="text-[#0b1c30]">{item}</p>
                   </div>
                 ))}
               </div>
 
               {latest?.dietPlan && (
-                <div className="mt-6 pt-4 border-t border-slate-100 grid grid-cols-3 gap-3 text-center">
-                  <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80">
-                    <span className="text-[9px] text-slate-500 uppercase font-semibold">Calories</span>
-                    <p className="text-xs font-bold text-slate-900 mt-0.5">{latest.dietPlan.calories} kcal</p>
+                <div className="mt-6 pt-4 border-t border-[#e5eeff] grid grid-cols-3 gap-3 text-center">
+                  <div className="p-2.5 rounded-xl bg-[#f8f9ff] border border-[#e5eeff]">
+                    <span className="text-[9px] font-mono-data text-[#737688] uppercase font-bold">Calories</span>
+                    <p className="text-xs font-mono-data font-bold text-[#0052ff] mt-0.5">{latest.dietPlan.calories} kcal</p>
                   </div>
-                  <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80">
-                    <span className="text-[9px] text-slate-500 uppercase font-semibold">Carbs</span>
-                    <p className="text-xs font-bold text-slate-900 mt-0.5">{latest.dietPlan.macroCarbs}g</p>
+                  <div className="p-2.5 rounded-xl bg-[#f8f9ff] border border-[#e5eeff]">
+                    <span className="text-[9px] font-mono-data text-[#737688] uppercase font-bold">Carbs</span>
+                    <p className="text-xs font-mono-data font-bold text-[#0052ff] mt-0.5">{latest.dietPlan.macroCarbs}g</p>
                   </div>
-                  <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80">
-                    <span className="text-[9px] text-slate-500 uppercase font-semibold">Protein</span>
-                    <p className="text-xs font-bold text-slate-900 mt-0.5">{latest.dietPlan.macroPro}g</p>
+                  <div className="p-2.5 rounded-xl bg-[#f8f9ff] border border-[#e5eeff]">
+                    <span className="text-[9px] font-mono-data text-[#737688] uppercase font-bold">Protein</span>
+                    <p className="text-xs font-mono-data font-bold text-[#0052ff] mt-0.5">{latest.dietPlan.macroPro}g</p>
                   </div>
                 </div>
               )}
@@ -96,25 +98,27 @@ export default function PreventionPage() {
           {/* Exercise Plans & Lifestyle Goals */}
           <div className="lg:col-span-6 space-y-6">
             {/* Exercise Plan */}
-            <div className="glass-panel p-6 rounded-2xl relative border border-slate-200/80 bg-white/80 shadow-sm">
-              <div className="flex items-center space-x-3 mb-6 pb-3 border-b border-slate-100">
-                <Dumbbell className="h-5 w-5 text-emerald-600" />
-                <h3 className="font-display font-bold text-sm text-slate-900">Cardiac Endurance Workouts</h3>
+            <div className="bg-white p-6 rounded-2xl relative border border-[#c3c5d9] shadow-stitch">
+              <div className="flex items-center space-x-3 mb-6 pb-3 border-b border-[#e5eeff]">
+                <div className="p-2 rounded-xl bg-[#eff4ff] text-[#005a3c]">
+                  <Dumbbell className="h-5 w-5" />
+                </div>
+                <h3 className="font-geist font-bold text-sm text-[#0b1c30]">Cardiac Endurance Workouts</h3>
               </div>
 
               <div className="space-y-4">
                 {Array.isArray(exerciseData) && exerciseData.map((item: string, idx: number) => (
-                  <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-light leading-relaxed flex items-start space-x-2.5">
-                    <span className="h-4.5 w-4.5 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{idx + 1}</span>
-                    <p className="text-slate-800">{item}</p>
+                  <div key={idx} className="p-3.5 rounded-xl bg-[#f8f9ff] border border-[#e5eeff] text-xs font-inter text-[#0b1c30] leading-relaxed flex items-start space-x-2.5">
+                    <span className="h-5 w-5 rounded bg-[#e5eeff] text-[#0052ff] flex items-center justify-center text-[10px] font-mono-data font-bold shrink-0 mt-0.5">{idx + 1}</span>
+                    <p className="text-[#0b1c30]">{item}</p>
                   </div>
                 ))}
               </div>
 
               {latest?.exercisePlan && (
-                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Target Workout Time:</span>
-                  <span className="font-semibold text-cyan-600 text-sm">{latest.exercisePlan.targetMins} mins/week</span>
+                <div className="mt-6 pt-4 border-t border-[#e5eeff] flex items-center justify-between text-xs font-inter">
+                  <span className="text-[#737688]">Target Workout Time:</span>
+                  <span className="font-mono-data font-bold text-[#0052ff] text-sm">{latest.exercisePlan.targetMins} mins/week</span>
                 </div>
               )}
             </div>

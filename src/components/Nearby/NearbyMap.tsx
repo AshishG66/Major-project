@@ -68,6 +68,7 @@ export default function NearbyMap({
           streetViewControl: false,
           rotateControl: false,
           fullscreenControl: true,
+          gestureHandling: 'cooperative',
         };
 
         const map = new google.maps.Map(mapRef.current, mapOptions);

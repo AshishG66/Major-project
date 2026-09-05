@@ -20,7 +20,19 @@ class UnifiedAIOrchestrator:
     and extends Digital Twin JSON response with prediction confidence & metadata.
     """
 
-    def __init__(self, models_dir="ai/models/"):
+    def __init__(self, models_dir=None):
+        if models_dir is None or not os.path.exists(models_dir):
+            env_dir = os.environ.get("MODELS_DIR")
+            if env_dir and os.path.exists(env_dir):
+                models_dir = env_dir
+            elif os.path.exists("ai/models/"):
+                models_dir = "ai/models/"
+            elif os.path.exists("models/"):
+                models_dir = "models/"
+            else:
+                candidate = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+                models_dir = candidate if os.path.exists(candidate) else "ai/models/"
+
         self.models_dir = models_dir
         self.models = {}
         self.production_manifest = {}

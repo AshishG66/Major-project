@@ -26,7 +26,6 @@ const DoctorTab = lazy(() => import('../components/DoctorTab'));
 // Standard sub-components
 import ThreeBackground from '../components/ThreeBackground';
 import AIHealthAssistant from '../components/AIHealthAssistant';
-import DashboardLoader from '../components/DashboardLoader';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -51,15 +50,6 @@ const itemVariants = {
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
-  const [showLoader, setShowLoader] = useState(() => {
-    return !sessionStorage.getItem('hridayadarpana_intro_seen');
-  });
-
-  const handleLoaderComplete = useCallback(() => {
-    sessionStorage.setItem('hridayadarpana_intro_seen', 'true');
-    setShowLoader(false);
-  }, []);
-
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'analytics' | 'simulation' | 'doctor'>('analytics');
@@ -360,11 +350,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 relative">
-      <AnimatePresence>
-        {showLoader && (
-          <DashboardLoader onComplete={handleLoaderComplete} />
-        )}
-      </AnimatePresence>
 
       <Suspense fallback={<div className="absolute inset-0 bg-transparent" />}>
         <ThreeBackground />
@@ -377,7 +362,7 @@ export default function DashboardPage() {
       <motion.div
         variants={containerVariants}
         initial="hidden"
-        animate={!showLoader ? "visible" : "hidden"}
+        animate="visible"
         className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
       >
         {/* Left Column: Health Score & ECG */}
@@ -394,34 +379,32 @@ export default function DashboardPage() {
           />
         </motion.div>
 
-        {/* Center Column: 3D Heart Digital Twin (Gentle Floating Effect) */}
+        {/* Center Column: 3D Heart Digital Twin */}
         <motion.div
           variants={itemVariants}
-          animate={{ y: [0, -6, 0] }}
-          transition={{ repeat: Infinity, duration: 4.5, ease: 'easeInOut' }}
-          className="glass-panel p-6 rounded-2xl flex flex-col items-center justify-between text-center relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-blue-50/30 h-[664px] border border-slate-200/80 shadow-md group"
+          className="bg-white p-6 rounded-2xl flex flex-col items-center justify-between text-center relative overflow-hidden min-h-[560px] lg:min-h-[620px] border border-[#c3c5d9] shadow-stitch group"
         >
           {/* Glass reflection gradient */}
           <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/20 pointer-events-none" />
 
-          <div className="w-full flex items-center justify-between z-10">
-            <span className="text-[9px] uppercase font-bold text-blue-600 tracking-wider flex items-center gap-1.5">
-              <Heart className="h-3.5 w-3.5 text-rose-500 animate-pulse" />
-              <span>Interactive Digital Twin</span>
+          <div className="w-full flex items-center justify-between z-10 border-b border-[#e5eeff] pb-3">
+            <span className="text-[10px] font-mono-data font-bold text-[#0052ff] uppercase tracking-wider flex items-center gap-1.5">
+              <Heart className="h-3.5 w-3.5 text-[#ba1a1a] animate-pulse" />
+              <span>3D Digital Twin Command HUD</span>
             </span>
 
             {/* Dynamic Risk Status Badge HUD */}
-            <span className={`text-[9px] uppercase font-extrabold tracking-widest px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-xs ${
+            <span className={`text-[9px] font-mono-data font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border flex items-center gap-1.5 shadow-xs ${
               activeRiskLevel === 'CRITICAL'
-                ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse'
+                ? 'bg-[#ffdad6] text-[#93000a] border-[#ba1a1a]/30 animate-pulse'
                 : activeRiskLevel === 'HIGH'
-                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                ? 'bg-[#fffbeb] text-[#92400e] border-[#f59e0b]/30'
                 : activeRiskLevel === 'MODERATE'
-                ? 'bg-amber-50 text-amber-600 border-amber-200'
-                : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                ? 'bg-[#fffbeb] text-[#d97706] border-[#f59e0b]/30'
+                : 'bg-[#eff4ff] text-[#005a3c] border-[#10b981]/30'
             }`}>
               <span className={`h-1.5 w-1.5 rounded-full ${
-                activeRiskLevel === 'CRITICAL' ? 'bg-rose-500 animate-ping' : activeRiskLevel === 'HIGH' ? 'bg-amber-500' : activeRiskLevel === 'MODERATE' ? 'bg-amber-400' : 'bg-emerald-500'
+                activeRiskLevel === 'CRITICAL' ? 'bg-[#ba1a1a] animate-ping' : activeRiskLevel === 'HIGH' ? 'bg-[#f59e0b]' : activeRiskLevel === 'MODERATE' ? 'bg-[#f59e0b]' : 'bg-[#10b981]'
               }`} />
               <span>{activeRiskLevel} RISK TWIN</span>
             </span>
@@ -430,8 +413,8 @@ export default function DashboardPage() {
           <div className="w-full flex-1 relative z-0 flex items-center justify-center mx-auto my-auto min-h-[420px]">
             <Suspense fallback={
               <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
-                <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
-                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Loading 3D Anatomy Model...</p>
+                <Loader2 className="h-10 w-10 text-[#0052ff] animate-spin" />
+                <p className="text-[10px] font-mono-data text-[#737688] uppercase font-bold tracking-widest">Loading 3D Anatomy Model...</p>
               </div>
             }>
               <ThreeHeart
@@ -452,7 +435,7 @@ export default function DashboardPage() {
             </Suspense>
           </div>
 
-          <div className="w-full relative z-10 px-2 min-h-[50px] flex flex-col justify-center">
+          <div className="w-full relative z-10 px-2 min-h-[50px] flex flex-col justify-center border-t border-[#e5eeff] pt-3">
             <AnimatePresence mode="wait">
               {hoveredHeartPart ? (
                 <motion.div
@@ -460,7 +443,7 @@ export default function DashboardPage() {
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
-                  className="p-2.5 rounded-xl bg-white/90 border border-slate-200 text-[9px] text-blue-600 flex items-start space-x-1.5 justify-center leading-relaxed shadow-xs"
+                  className="p-2.5 rounded-xl bg-[#eff4ff] border border-[#0052ff]/30 text-[10px] font-mono-data text-[#003ec7] flex items-start space-x-1.5 justify-center leading-relaxed shadow-xs"
                 >
                   <span>{getHeartPartExplanation(hoveredHeartPart)}</span>
                 </motion.div>
@@ -471,14 +454,14 @@ export default function DashboardPage() {
                   animate={{ opacity: 1 }}
                   className="space-y-0.5 text-center"
                 >
-                  <div className="flex items-center justify-center gap-3 text-[11px] font-bold text-slate-900 tracking-wide">
+                  <div className="flex items-center justify-center gap-3 text-xs font-mono-data font-bold text-[#0b1c30] tracking-wide">
                     <span>{simulatedHR} BPM</span>
-                    <span className="text-slate-300">•</span>
+                    <span className="text-[#c3c5d9]">•</span>
                     <span>BP: {activeSystolic}/{activeDiastolic} mmHg</span>
-                    <span className="text-slate-300">•</span>
+                    <span className="text-[#c3c5d9]">•</span>
                     <span>Chol: {activeChol} mg/dL</span>
                   </div>
-                  <span className="text-[8px] uppercase tracking-widest text-slate-500 font-bold block mt-0.5">
+                  <span className="text-[9px] font-mono-data uppercase tracking-widest text-[#737688] font-bold block mt-0.5">
                     {simulatedHR >= 100 ? 'Tachycardia / Elevated Rhythm' : simulatedHR <= 55 ? 'Bradycardia / Slow Rhythm' : 'Normal Sinus Rhythm'}
                   </span>
                 </motion.div>
@@ -486,7 +469,7 @@ export default function DashboardPage() {
             </AnimatePresence>
           </div>
 
-          <span className="text-[7.5px] text-slate-400 uppercase font-semibold pointer-events-none z-10">
+          <span className="text-[8px] font-mono-data text-[#737688] uppercase font-semibold pointer-events-none z-10 mt-1">
             Hover components to isolate chambers & vessels • Drag to rotate • Scroll to zoom
           </span>
         </motion.div>

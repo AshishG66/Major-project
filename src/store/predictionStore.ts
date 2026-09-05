@@ -71,6 +71,7 @@ interface PredictionState {
   addPrediction: (data: PredictionData) => void;
   setIsScanning: (scanning: boolean) => void;
   recalculateStats: () => void;
+  resetPredictionStore: () => void;
 }
 
 const STORAGE_KEY = 'hridya_latest_prediction';
@@ -212,6 +213,27 @@ export const usePredictionStore = create<PredictionState>((set, get) => {
     recalculateStats: () => {
       const { predictionHistory, latestPrediction } = get();
       set({ stats: computeStats(predictionHistory, latestPrediction) });
+    },
+
+    resetPredictionStore: () => {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(HISTORY_KEY);
+        localStorage.removeItem('latest_scan_result');
+      } catch {}
+      set({
+        latestPrediction: null,
+        predictionHistory: [],
+        stats: {
+          totalScans: 0,
+          avgRiskScore: 0,
+          avgHealthScore: 100,
+          highRiskCount: 0,
+          lowRiskCount: 0,
+          todayScansCount: 0,
+        },
+        isScanning: false,
+      });
     },
   };
 });

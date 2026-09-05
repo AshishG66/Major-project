@@ -42,6 +42,12 @@ model User {
   
   doctorNotes          DoctorNote[]      @relation("PatientUser")
   writtenNotes         DoctorNote[]      @relation("DoctorUser")
+
+  // Phase-I SRS Requirements
+  sensorData           SensorData[]
+  digitalTwinState     DigitalTwinState?
+  alerts               Alert[]
+  devices              Device[]
 }
 
 model UserProfile {
@@ -81,6 +87,11 @@ model Prediction {
   factors           PredictionFactors?
   shapExplanation   Json               // Store SHAP values json directly
   plainExplanation  String             @db.Text
+  risk30Day         Float?             // 30-day risk probability percentage
+  risk1Year         Float?             // 1-year risk probability percentage
+  risk5Year         Float?             // 5-year risk probability percentage
+  modelVersion      String?            @default("v2.1-ClinicalEnsemble")
+  horizonConfidence Json?              // Confidence/uncertainty info per horizon
   createdAt         DateTime           @default(now())
 }
 
@@ -263,13 +274,109 @@ model Session {
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    String
-  details   String   @db.Text
-  ipAddress String?
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  patientId    String?
+  eventType    String   @default("GENERIC")
+  action       String
+  details      String   @db.Text
+  ipAddress    String?
+  previousHash String?  @default("GENESIS_BLOCK_00000000000000000000000000000000")
+  currentHash  String?
+  createdAt    DateTime @default(now())
+}
+
+// ─── FR1: Time-Series Physiological Sensor Data Ingestion ───
+model SensorData {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String?
+  device       Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  heartRate    Int?
+  hrv          Float?   // Heart Rate Variability (ms)
+  systolicBP   Int?
+  diastolicBP  Int?
+  spo2         Float?   // Blood Oxygen (%)
+  ecgValue     Float?   // mV or index
+  ppgValue     Float?   
+  activityMins Int?     @default(0)
+  sleepHours   Float?   @default(0)
+  temperature  Float?   // Celsius
+  weight       Float?   // kg
+  glucose      Int?     // mg/dL
+  confidence   Float    @default(0.95)
+  dataQuality  String   @default("HIGH") // HIGH, MEDIUM, LOW
+  isSimulated  Boolean  @default(false)
+  timestamp    DateTime @default(now())
+  createdAt    DateTime @default(now())
+}
+
+// ─── FR2: Digital Twin Physiological State ───
+model DigitalTwinState {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  heartRate       Int      @default(72)
+  hrv             Float    @default(45.0)
+  systolicBP      Int      @default(120)
+  diastolicBP     Int      @default(80)
+  spo2            Float    @default(98.0)
+  activityMins    Int      @default(30)
+  sleepHours      Float    @default(7.5)
+  ecgStatus       String   @default("NORMAL")
+  riskScore       Float    @default(15.0)
+  riskLevel       String   @default("LOW")
+  majorFactors    Json?
+  dataQuality     String   @default("HIGH") // HIGH, MEDIUM, LOW
+  confidenceScore Float    @default(0.95)
+  isSimulated     Boolean  @default(false)
+  lastUpdated     DateTime @updatedAt
+}
+
+// ─── FR4: Dynamic Risk & Vitals Alerting ───
+model Alert {
+  id                  String    @id @default(uuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level               String    // LOW, MODERATE, HIGH, CRITICAL
+  title               String
+  message             String
+  contributingFactors Json?
+  status              String    @default("TRIGGERED") // TRIGGERED, ACKNOWLEDGED
+  acknowledgedAt      DateTime?
+  createdAt           DateTime  @default(now())
+}
+
+// ─── FR9: Model Version Management ───
+model ModelVersion {
+  id           String   @id @default(uuid())
+  name         String
+  version      String   @unique
+  trainingDate DateTime
+  modelType    String   // XGBoost, LightGBM, CatBoost, Multi-Model Ensemble
+  features     Json
+  accuracy     Float?
+  rocAuc       Float?
+  f1Score      Float?
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, DEPRECATED
+  createdAt    DateTime @default(now())
+}
+
+// ─── FR11: Wearable & Physiological Device Management ───
+model Device {
+  id               String       @id @default(uuid())
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceType       String       // SMARTWATCH, ECG_MONITOR, BP_MONITOR, PULSE_OXIMETER
+  deviceIdentifier String       @unique
+  name             String
+  status           String       @default("ACTIVE") // ACTIVE, INACTIVE, PAIRED
+  lastSeen         DateTime     @default(now())
+  isSimulated      Boolean      @default(false)
+  sensorPayloads   SensorData[]
+  createdAt        DateTime     @default(now())
 }
 
 // ─── Semantic RAG Knowledge Base ───

@@ -73,9 +73,9 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
 
   return (
     <motion.div
-      whileHover={{ y: -4, boxShadow: '0 25px 30px -5px rgba(0, 0, 0, 0.08), 0 10px 12px -6px rgba(0, 0, 0, 0.02)' }}
+      whileHover={{ y: -4, boxShadow: '0px 8px 30px rgba(0, 82, 204, 0.08)' }}
       transition={{ duration: 0.3 }}
-      className="glass-panel p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden bg-white/85 dark:bg-slate-900/85 border border-slate-200/90 dark:border-slate-800 shadow-lg min-h-[380px] group"
+      className="bg-white p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden border border-[#c3c5d9] shadow-stitch min-h-[380px] group font-sans"
     >
       {/* Glass Reflection Accent */}
       <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/20 pointer-events-none" />
@@ -87,21 +87,21 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
       />
 
       {/* Card Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3.5 z-10">
+      <div className="flex items-center justify-between border-b border-[#e5eeff] pb-3.5 z-10">
         <div className="flex items-center space-x-2.5">
-          <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:rotate-6 transition-transform">
+          <div className="p-2 rounded-xl bg-[#eff4ff] text-[#0052ff] group-hover:scale-110 transition-transform">
             <Activity className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+            <h3 className="text-xs font-geist font-bold uppercase tracking-wider text-[#0b1c30]">
               Risk Classification Centerpiece
             </h3>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-              Multi-Agent AI Ensemble Assessment
+            <p className="text-[10px] font-inter text-[#737688] font-normal">
+              5 ML Ensemble Predictive Analytics
             </p>
           </div>
         </div>
-        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/50 uppercase tracking-wider">
+        <span className="text-[9px] font-mono-data font-bold px-2.5 py-0.5 rounded-full bg-[#eff4ff] text-[#003ec7] border border-[#0052ff]/30 uppercase tracking-wider">
           LIVE TELEMETRY
         </span>
       </div>
@@ -110,8 +110,8 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
       <div className="relative w-full flex flex-col items-center justify-center my-auto py-2 z-10">
         {dashLoading ? (
           <div className="flex flex-col items-center justify-center h-56">
-            <Loader2 className="h-9 w-9 text-blue-600 animate-spin mb-3" />
-            <span className="text-xs text-slate-400 font-medium animate-pulse">Running Clinical Risk Scan...</span>
+            <Loader2 className="h-9 w-9 text-[#0052ff] animate-spin mb-3" />
+            <span className="text-xs font-inter text-[#737688] font-medium animate-pulse">Running Clinical Risk Scan...</span>
           </div>
         ) : (
           <>
@@ -124,14 +124,14 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
                     <stop offset="0%" stopColor="#10b981" />
                     <stop offset="35%" stopColor="#f59e0b" />
                     <stop offset="70%" stopColor="#f97316" />
-                    <stop offset="100%" stopColor="#ef4444" />
+                    <stop offset="100%" stopColor="#ba1a1a" />
                   </linearGradient>
 
                   {/* Silver Metallic Needle Gradient */}
                   <linearGradient id="metallicNeedleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#ffffff" />
-                    <stop offset="50%" stopColor="#cbd5e1" />
-                    <stop offset="100%" stopColor="#64748b" />
+                    <stop offset="50%" stopColor="#c3c5d9" />
+                    <stop offset="100%" stopColor="#434656" />
                   </linearGradient>
 
                   {/* Active Segment Selective Glow Filter */}
@@ -150,8 +150,7 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
                 <path
                   d="M 15 102 A 85 85 0 0 1 185 102"
                   fill="none"
-                  stroke="currentColor"
-                  className="text-slate-100 dark:text-slate-800"
+                  stroke="#e5eeff"
                   strokeWidth="14"
                   strokeLinecap="round"
                 />
@@ -178,8 +177,7 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
                     y1={t.y1}
                     x2={t.x2}
                     y2={t.y2}
-                    stroke="currentColor"
-                    className={t.isMajor ? 'text-slate-400 dark:text-slate-500' : 'text-slate-200 dark:text-slate-800'}
+                    stroke={t.isMajor ? '#737688' : '#e5eeff'}
                     strokeWidth={t.isMajor ? 1.5 : 1}
                   />
                 ))}
@@ -193,7 +191,7 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
                 <text x="15" y="118" fontSize="7" fill="#10b981" textAnchor="middle" fontWeight="700">
                   LOW
                 </text>
-                <text x="185" y="118" fontSize="7" fill="#ef4444" textAnchor="middle" fontWeight="700">
+                <text x="185" y="118" fontSize="7" fill="#ba1a1a" textAnchor="middle" fontWeight="700">
                   HIGH
                 </text>
 
@@ -229,7 +227,7 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
 
                 {/* Metallic Hub Pivot Point */}
                 <circle cx="100" cy="102" r="10" fill={config.color} opacity="0.25" className="animate-ping" />
-                <circle cx="100" cy="102" r="7" fill="url(#metallicNeedleGradient)" stroke="#475569" strokeWidth="1" />
+                <circle cx="100" cy="102" r="7" fill="url(#metallicNeedleGradient)" stroke="#434656" strokeWidth="1" />
                 <circle cx="100" cy="102" r="2.5" fill={config.color} />
               </svg>
 
@@ -237,18 +235,18 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
               <div className="absolute top-[50%] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center">
                 <div className="flex items-baseline space-x-0.5">
                   <span
-                    className="text-5xl font-black font-mono tracking-tight transition-colors duration-500 drop-shadow-sm"
-                    style={{ color: isUnscanned ? '#94a3b8' : config.color }}
+                    className="text-5xl font-extrabold font-mono-data tracking-tight transition-colors duration-500 drop-shadow-sm"
+                    style={{ color: isUnscanned ? '#737688' : config.color }}
                   >
                     {isUnscanned ? '—' : displayScore}
                   </span>
                   {!isUnscanned && (
-                    <span className="text-2xl font-bold font-mono" style={{ color: config.color }}>
+                    <span className="text-2xl font-bold font-mono-data" style={{ color: config.color }}>
                       %
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest -mt-1">
+                <span className="text-[10px] font-mono-data font-bold text-[#737688] uppercase tracking-widest -mt-1">
                   10-Yr CVD Risk Score
                 </span>
               </div>
@@ -258,35 +256,35 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
       </div>
 
       {/* Threshold Legend Bar */}
-      <div className="z-10 bg-slate-50/80 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 mb-3 flex items-center justify-between text-[10px] font-medium text-slate-600 dark:text-slate-400">
-        <div className="flex items-center space-x-1 font-semibold text-slate-500">
-          <Info className="h-3 w-3 text-blue-500" />
+      <div className="z-10 bg-[#f8f9ff] p-2.5 rounded-xl border border-[#e5eeff] mb-3 flex items-center justify-between text-[10px] font-medium text-[#434656]">
+        <div className="flex items-center space-x-1 font-geist font-semibold text-[#737688]">
+          <Info className="h-3 w-3 text-[#0052ff]" />
           <span>Thresholds:</span>
         </div>
-        <div className="flex items-center space-x-3 font-mono text-[9.5px]">
+        <div className="flex items-center space-x-3 font-mono-data text-[9.5px]">
           <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="h-2 w-2 rounded-full bg-[#10b981]" />
             Low &lt;35%
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            <span className="h-2 w-2 rounded-full bg-[#f59e0b]" />
             Mod 35-65%
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            <span className="h-2 w-2 rounded-full bg-[#ba1a1a]" />
             High &gt;65%
           </span>
         </div>
       </div>
 
       {/* Bottom Status Bar */}
-      <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3 flex items-center justify-between z-10">
-        <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+      <div className="border-t border-[#e5eeff] pt-3 flex items-center justify-between z-10">
+        <div className="flex items-center space-x-2 text-xs font-inter text-[#434656] font-medium">
           <IconComp className="h-4 w-4" style={{ color: config.color }} />
           <span>Assessed Status</span>
         </div>
         <div
-          className={`px-3.5 py-1 rounded-full text-xs font-extrabold border transition-all duration-500 shadow-xs flex items-center space-x-1.5 ${config.bg}`}
+          className={`px-3.5 py-1 rounded-full text-xs font-geist font-bold border transition-all duration-500 shadow-xs flex items-center space-x-1.5 ${config.bg}`}
         >
           <span>{dashLoading ? 'Evaluating...' : config.label}</span>
         </div>

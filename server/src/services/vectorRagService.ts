@@ -171,11 +171,11 @@ export async function seedKnowledgeBase(): Promise<void> {
  * Embeds the query, runs pgvector cosine similarity, returns top-K chunks.
  */
 export async function semanticSearch(query: string, topK: number = 5): Promise<{ title: string; content: string; similarity: number }[]> {
-  try {
+  const searchPromise = async () => {
     const queryEmbedding = await embedText(query);
     const vectorStr = `[${queryEmbedding.join(',')}]`;
 
-    const results = await prisma.$queryRawUnsafe<{ title: string; content: string; similarity: number }[]>(
+    return await prisma.$queryRawUnsafe<{ title: string; content: string; similarity: number }[]>(
       `SELECT title, content, 1 - (embedding <=> $1::vector) AS similarity
        FROM medical_knowledge
        WHERE embedding IS NOT NULL
@@ -184,23 +184,28 @@ export async function semanticSearch(query: string, topK: number = 5): Promise<{
       vectorStr,
       topK
     );
+  };
 
-    logger.info(`[VectorRAG] Semantic search for "${query.slice(0, 40)}..." returned ${results.length} results (top similarity: ${results[0]?.similarity?.toFixed(3) || 'N/A'})`);
+  const timeoutPromise = new Promise<{ title: string; content: string; similarity: number }[]>((_, reject) =>
+    setTimeout(() => reject(new Error('Vector query exceeded 2500ms threshold')), 2500)
+  );
+
+  try {
+    const results = await Promise.race([searchPromise(), timeoutPromise]);
+    logger.info(`[VectorRAG] Semantic search for "${query.slice(0, 40)}..." returned ${results.length} results`);
     return results;
   } catch (err: any) {
-    logger.error(`[VectorRAG] Semantic search failed: ${err.message}`);
-    // Fallback: keyword search on title/content
-    const fallback = await prisma.medicalKnowledge.findMany({
-      where: {
-        OR: [
-          { title: { contains: query.split(' ')[0], mode: 'insensitive' } },
-          { content: { contains: query.split(' ')[0], mode: 'insensitive' } },
-        ]
-      },
-      take: topK,
-      select: { title: true, content: true },
-    });
-    return fallback.map(r => ({ ...r, similarity: 0.5 }));
+    logger.warn(`[VectorRAG] Fast fallback used: ${err.message}`);
+    // Fast keyword search on knowledge chunks
+    const firstWord = query.trim().split(/\s+/)[0]?.toLowerCase() || '';
+    const matches = CLINICAL_KNOWLEDGE_CHUNKS.filter(c =>
+      c.title.toLowerCase().includes(firstWord) || c.content.toLowerCase().includes(firstWord)
+    ).slice(0, topK);
+
+    if (matches.length > 0) {
+      return matches.map(m => ({ title: m.title, content: m.content, similarity: 0.85 }));
+    }
+    return CLINICAL_KNOWLEDGE_CHUNKS.slice(0, topK).map(m => ({ title: m.title, content: m.content, similarity: 0.7 }));
   }
 }
 

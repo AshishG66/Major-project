@@ -75,110 +75,72 @@ export const sendMessage = async (req: Request, res: Response) => {
 
 export const getSessions = async (req: Request, res: Response) => {
   try {
-    const userId = (req as AuthRequest).user?.id || 'demo-patient-amit';
-
-    let validUserId = userId;
-    try {
-      const userExists = await prisma.user.findUnique({ where: { id: userId } });
-      if (!userExists) {
-        const defaultUser = await prisma.user.findFirst();
-        if (defaultUser) {
-          validUserId = defaultUser.id;
-        }
-      }
-
-      const sessions = await prisma.chatSession.findMany({
-        where: { userId: validUserId },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      });
-
-      return res.status(200).json({ success: true, sessions });
-    } catch (err: any) {
-      logger.warn(`[Sessions DB Warning] ${err.message}. Returning fallback session.`);
-      return res.status(200).json({
-        success: true,
-        sessions: [
-          {
-            id: 'session-demo-active',
-            userId: validUserId,
-            title: 'HridyaAI Consultation',
-            createdAt: new Date().toISOString(),
-          }
-        ]
-      });
+    const userId = (req as AuthRequest).user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
     }
-  } catch (error: any) {
-    res.status(200).json({
-      success: true,
-      sessions: [
-        {
-          id: 'session-demo-active',
-          userId: 'demo-patient-amit',
-          title: 'HridyaAI Consultation',
-          createdAt: new Date().toISOString(),
-        }
-      ]
+
+    const sessions = await prisma.chatSession.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
     });
+
+    return res.status(200).json({ success: true, sessions });
+  } catch (error: any) {
+    logger.error(`[Chat] getSessions error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
 export const getSessionMessages = async (req: Request, res: Response) => {
   try {
+    const userId = (req as AuthRequest).user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
+
     const { id } = req.params;
 
-    try {
-      const messages = await prisma.chatMessage.findMany({
-        where: { sessionId: id as string },
-        orderBy: { createdAt: 'asc' },
-      });
+    // Validate that the session exists and belongs to the authenticated user
+    const session = await prisma.chatSession.findFirst({
+      where: { id: id as string, userId },
+    });
 
-      return res.status(200).json({ success: true, messages });
-    } catch (err: any) {
-      logger.warn(`[Session Messages DB Warning] ${err.message}. Returning empty message array.`);
-      return res.status(200).json({ success: true, messages: [] });
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Chat session not found or unauthorized' });
     }
+
+    const messages = await prisma.chatMessage.findMany({
+      where: { sessionId: id as string },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return res.status(200).json({ success: true, messages });
   } catch (error: any) {
-    res.status(200).json({ success: true, messages: [] });
+    logger.error(`[Chat] getSessionMessages error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
 export const createSession = async (req: Request, res: Response) => {
   try {
-    const userId = (req as AuthRequest).user?.id || 'demo-patient-amit';
-    const newSessionId = `session-${Date.now()}`;
-
-    try {
-      const session = await prisma.chatSession.create({
-        data: {
-          userId,
-          title: 'New Health Consultation',
-        },
-      });
-
-      return res.status(201).json({ success: true, session });
-    } catch (err: any) {
-      logger.warn(`[Create Session DB Warning] ${err.message}. Returning memory session.`);
-      return res.status(201).json({
-        success: true,
-        session: {
-          id: newSessionId,
-          userId,
-          title: 'New Health Consultation',
-          createdAt: new Date().toISOString(),
-        }
-      });
+    const userId = (req as AuthRequest).user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
     }
-  } catch (error: any) {
-    res.status(201).json({
-      success: true,
-      session: {
-        id: `session-${Date.now()}`,
-        userId: 'demo-patient-amit',
-        title: 'New Health Consultation',
-        createdAt: new Date().toISOString(),
-      }
+
+    const session = await prisma.chatSession.create({
+      data: {
+        userId,
+        title: req.body?.title || 'New Health Consultation',
+      },
     });
+
+    return res.status(201).json({ success: true, session });
+  } catch (error: any) {
+    logger.error(`[Chat] createSession error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 

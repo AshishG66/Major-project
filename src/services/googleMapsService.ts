@@ -428,3 +428,96 @@ export async function fetchNearbyFacilities(
     errorMessage: 'Unable to fetch nearby healthcare providers. Please verify Google Places API settings or try again later.',
   };
 }
+
+export interface GeolocationPositionResult {
+  coords: [number, number];
+  permissionStatus: 'granted' | 'denied' | 'prompt' | 'unavailable';
+  error?: string;
+}
+
+/**
+ * Robust cross-platform device location retriever
+ * Uses @capacitor/geolocation on native mobile (Android/iOS)
+ * and falls back to navigator.geolocation on web browsers.
+ */
+export async function getCurrentDeviceLocation(): Promise<GeolocationPositionResult> {
+  const isCapacitor = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+
+  if (isCapacitor) {
+    try {
+      const { Geolocation } = await import('@capacitor/geolocation');
+
+      // 1. Check current permissions
+      let perm = await Geolocation.checkPermissions();
+      if (perm.location !== 'granted') {
+        perm = await Geolocation.requestPermissions({ permissions: ['location'] });
+      }
+
+      if (perm.location === 'granted') {
+        const pos = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 10000,
+        });
+
+        return {
+          coords: [pos.coords.latitude, pos.coords.longitude],
+          permissionStatus: 'granted',
+        };
+      } else {
+        return {
+          coords: [28.6139, 77.2090],
+          permissionStatus: perm.location === 'denied' ? 'denied' : 'prompt',
+          error: 'Location permission was not granted. Please enable location in your device settings to locate nearby clinics.',
+        };
+      }
+    } catch (err: any) {
+      console.warn('[Capacitor Geolocation] Native location error:', err);
+      // Fall back to web navigator if capacitor plugin encountered runtime issue
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        return new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ coords: [pos.coords.latitude, pos.coords.longitude], permissionStatus: 'granted' }),
+            (e) => resolve({ coords: [28.6139, 77.2090], permissionStatus: 'denied', error: e.message }),
+            { timeout: 10000, enableHighAccuracy: true }
+          );
+        });
+      }
+      return {
+        coords: [28.6139, 77.2090],
+        permissionStatus: 'denied',
+        error: err.message || 'Unable to retrieve location from native GPS.',
+      };
+    }
+  }
+
+  // Web Browser / Localhost fallback
+  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            coords: [pos.coords.latitude, pos.coords.longitude],
+            permissionStatus: 'granted',
+          });
+        },
+        (err) => {
+          console.warn('[Web Geolocation] Browser location rejected:', err);
+          resolve({
+            coords: [28.6139, 77.2090],
+            permissionStatus: 'denied',
+            error: err.message,
+          });
+        },
+        { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+      );
+    });
+  }
+
+  return {
+    coords: [28.6139, 77.2090],
+    permissionStatus: 'unavailable',
+    error: 'Geolocation is not supported by your current browser.',
+  };
+}
+

@@ -10,7 +10,7 @@ import NearbyMap from '../components/Nearby/NearbyMap';
 import ApiKeyNotice from '../components/Nearby/ApiKeyNotice';
 import EmergencyBanner from '../components/Nearby/EmergencyBanner';
 import AiRecommendationCard from '../components/Nearby/AiRecommendationCard';
-import { Facility, fetchNearbyFacilities, geocodeLocation, GoogleApiErrorType } from '../services/googleMapsService';
+import { Facility, fetchNearbyFacilities, geocodeLocation, GoogleApiErrorType, getCurrentDeviceLocation } from '../services/googleMapsService';
 
 export default function NearbyPage() {
   const [coords, setCoords] = useState<[number, number] | null>(null);
@@ -39,28 +39,26 @@ export default function NearbyPage() {
   // List scroll container ref
   const listRef = useRef<HTMLDivElement>(null);
 
-  // 1. Browser Geolocation Request
-  const requestLocation = () => {
-    if (navigator.geolocation) {
-      setGeoLoading(true);
-      setPermissionDenied(false);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setCoords([pos.coords.latitude, pos.coords.longitude]);
-          setGeoLoading(false);
-          setIsLocationDetected(true);
-        },
-        (err) => {
-          console.warn('Browser Geolocation rejected or timed out:', err);
-          setGeoLoading(false);
-          setPermissionDenied(true);
-          setCoords([28.6139, 77.2090]); // New Delhi default coordinates
-        },
-        { timeout: 10000, maximumAge: 60000 }
-      );
-    } else {
+  // 1. Cross-platform Geolocation Request (Capacitor on Mobile, Navigator on Web)
+  const requestLocation = async () => {
+    setGeoLoading(true);
+    setPermissionDenied(false);
+    try {
+      const loc = await getCurrentDeviceLocation();
+      setCoords(loc.coords);
+      if (loc.permissionStatus === 'granted') {
+        setIsLocationDetected(true);
+        setPermissionDenied(false);
+      } else {
+        setPermissionDenied(true);
+        setIsLocationDetected(false);
+      }
+    } catch (err) {
+      console.warn('Geolocation request failed:', err);
       setPermissionDenied(true);
       setCoords([28.6139, 77.2090]);
+    } finally {
+      setGeoLoading(false);
     }
   };
 
@@ -167,32 +165,33 @@ export default function NearbyPage() {
   }, [selectedDoctorId, filteredFacilities]);
 
   return (
-    <div className="space-y-5 relative">
-      
-      {/* Top Bar Notice & Manual Search */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div className="flex items-center space-x-2">
-          {isLocationDetected ? (
-            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-ping" />
-              <span>📍 Live Position Detected</span>
+    <div className="max-w-7xl mx-auto space-y-6 font-sans">
+      {/* Top Banner */}
+      <div className="bg-white p-6 rounded-2xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0 border border-[#c3c5d9] shadow-stitch">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] font-mono-data font-bold uppercase tracking-wider text-[#0052ff] bg-[#eff4ff] px-2.5 py-0.5 rounded-full border border-[#0052ff]/30">
+              Live Google Places API
             </span>
-          ) : (
-            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase bg-amber-50 text-amber-600 border border-amber-200 shadow-xs">
-              <span>🔍 Custom Search Zone</span>
-            </span>
-          )}
+            <span className="text-[10px] font-mono-data text-[#005a3c] font-bold">● Active Radius ({radius} km)</span>
+          </div>
 
-          <span className="text-xxs text-slate-500 font-medium">
-            {coords ? `[${coords[0].toFixed(3)}, ${coords[1].toFixed(3)}]` : ''}
-          </span>
+          <h2 className="text-xl font-geist font-bold text-[#0b1c30] tracking-tight">
+            Geolocated Cardiac Clinics & ER Units
+          </h2>
+          <p className="text-xs font-inter text-[#434656] max-w-2xl">
+            Locate verified cardiac care units, catheterization labs, and emergency rooms with real Google Places rating scores and live directions.
+          </p>
         </div>
 
-        <SearchBar
-          onSearch={handleManualSearch}
-          onRequestGeolocation={requestLocation}
-          isLoading={geoLoading}
-        />
+        {/* Right Search Input Box */}
+        <div className="w-full md:w-80 shrink-0">
+          <SearchBar
+            onSearch={handleManualSearch}
+            onRequestGeolocation={requestLocation}
+            isLoading={geoLoading}
+          />
+        </div>
       </div>
 
       {/* Google API Notice Banner */}
@@ -290,10 +289,10 @@ export default function NearbyPage() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-270px)] min-h-[520px] overflow-hidden items-stretch">
+        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-auto lg:h-[calc(100vh-270px)] lg:min-h-[520px] items-stretch">
           
-          {/* LEFT PANEL: Interactive Map Canvas */}
-          <div className="lg:col-span-7 xl:col-span-8 rounded-2xl overflow-hidden h-full z-10 border border-slate-200/80 relative shadow-sm">
+          {/* MAP CANVAS */}
+          <div className="w-full lg:col-span-7 xl:col-span-8 rounded-2xl overflow-hidden h-[360px] lg:h-full z-10 border border-slate-200/80 relative shadow-sm shrink-0">
             <NearbyMap
               center={coords}
               doctors={filteredFacilities}
@@ -303,8 +302,8 @@ export default function NearbyPage() {
             />
           </div>
 
-          {/* RIGHT PANEL: Scrollable Facility Cards List */}
-          <div className="lg:col-span-5 xl:col-span-4 flex flex-col h-full bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
+          {/* FACILITY CARDS LIST */}
+          <div className="w-full lg:col-span-5 xl:col-span-4 flex flex-col h-auto lg:h-full bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
             
             {/* List Header */}
             <div className="px-5 py-3.5 border-b border-slate-200/80 bg-slate-50 flex justify-between items-center shrink-0">
@@ -320,8 +319,8 @@ export default function NearbyPage() {
               </span>
             </div>
 
-            {/* List Scrollable Body */}
-            <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin">
+            {/* List Body: natural height on mobile, scrollable on desktop */}
+            <div ref={listRef} className="flex-1 lg:overflow-y-auto p-4 space-y-3.5 scrollbar-thin">
               {isLoadingFacilities && facilities.length === 0 ? (
                 <LoadingSkeleton />
               ) : filteredFacilities.length === 0 ? (

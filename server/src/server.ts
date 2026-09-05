@@ -8,7 +8,7 @@ import { createServer } from 'http';
 import { logger } from './config/logger.js';
 import { errorHandler } from './middleware/error.js';
 import { prisma } from './config/db.js';
-import { authenticate, AuthRequest } from './middleware/auth.js';
+import { authenticate, authorize, AuthRequest } from './middleware/auth.js';
 import { socketService } from './services/socketService.js';
 import { initEventBusListeners } from './services/eventBusListeners.js';
 import { metricsMiddleware, registry } from './middleware/metrics.js';
@@ -16,20 +16,66 @@ import { getAITelemetryStats } from './services/aiTelemetry.js';
 import { seedKnowledgeBase } from './services/vectorRagService.js';
 import { generateSignedUrl } from './middleware/signedUrls.js';
 import { generateTOTPSecret, verifyTOTPToken, detectLoginAnomaly } from './services/twoFactorService.js';
+import { initDataRetentionScheduler, runDataRetentionCleanup, getRetentionStatus } from './services/dataRetentionService.js';
 
 // Routers
 import authRouter from './auth/auth.router.js';
 import predictionRouter from './prediction/prediction.router.js';
 import chatRouter from './chat/chat.router.js';
 import mapsRouter from './maps/maps.router.js';
+import sensorDataRouter from './sensorData/sensorData.router.js';
+import digitalTwinRouter from './digitalTwin/digitalTwin.router.js';
+import alertsRouter from './alerts/alerts.router.js';
+import auditRouter from './audit/audit.router.js';
+import modelsRouter from './models/models.router.js';
+import devicesRouter from './devices/devices.router.js';
+import simulationRouter from './simulation/simulation.router.js';
+import analyticsRouter from './analytics/analytics.router.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Security Middlewares
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+}));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // 1. Allow mobile apps, curl, native Capacitor requests (no Origin header)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // 2. Allow Capacitor native origins
+    if (origin.startsWith('capacitor://') || 
+        origin.startsWith('http://localhost') || 
+        origin.startsWith('https://localhost') || 
+        origin.startsWith('http://10.0.2.2')) {
+      return callback(null, true);
+    }
+
+    // 3. Allow explicit configured frontend URL(s)
+    if (process.env.FRONTEND_URL) {
+      const allowedFrontends = process.env.FRONTEND_URL.split(',').map(s => s.trim());
+      if (allowedFrontends.includes(origin)) {
+        return callback(null, true);
+      }
+    }
+
+    // 4. Allow local network during development or production deployment domains
+    if (origin.startsWith('http://192.168.') || 
+        origin.startsWith('http://172.') || 
+        origin.startsWith('http://10.') ||
+        origin.includes('onrender.com') ||
+        origin.includes('up.railway.app') ||
+        origin.includes('vercel.app') ||
+        origin.includes('hridayadarpana')) {
+      return callback(null, true);
+    }
+
+    // Default fallback: allow and log
+    callback(null, true);
+  },
   credentials: true,
 }));
 
@@ -59,6 +105,14 @@ app.use('/api/auth', authRouter);
 app.use('/api/prediction', predictionRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/maps', mapsRouter);
+app.use('/api/sensor-data', sensorDataRouter);
+app.use('/api/digital-twin', digitalTwinRouter);
+app.use('/api/alerts', alertsRouter);
+app.use('/api/audit', auditRouter);
+app.use('/api/models', modelsRouter);
+app.use('/api/devices', devicesRouter);
+app.use('/api/risk/simulate', simulationRouter);
+app.use('/api/analytics', analyticsRouter);
 
 // 1. LIFESTYLE LOGGING & ACHIEVEMENTS ENGINE
 app.post('/api/lifestyle', authenticate, async (req, res) => {
@@ -615,25 +669,48 @@ app.post('/api/notifications/read', authenticate, async (req, res) => {
   }
 });
 
-// Health diagnostics check
-app.get('/api/health', async (req, res) => {
-  try {
-    await prisma.$executeRaw`SELECT 1`;
-    let aiStatus = 'offline';
-    try {
-      const response = await fetch(`${process.env.AI_SERVICE_URL || 'http://localhost:8000'}/health`);
-      if (response.ok) aiStatus = 'online';
-    } catch {}
-    res.status(200).json({
-      status: 'healthy',
-      database: 'connected',
-      aiService: aiStatus,
-      timestamp: new Date()
-    });
-  } catch (error: any) {
-    res.status(500).json({ status: 'unhealthy', error: error.message });
-  }
+// Root discovery endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'HridayaDarpana API Gateway',
+    version: '1.0.0',
+    health: '/api/health',
+    docs: '/api/docs',
+    timestamp: new Date().toISOString()
+  });
 });
+
+// Health diagnostics check (lightweight, resilient, non-blocking)
+const healthCheckHandler = async (req: express.Request, res: express.Response) => {
+  let dbStatus = 'disconnected';
+  try {
+    const dbPromise = prisma.$queryRaw`SELECT 1 as ping`;
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500));
+    await Promise.race([dbPromise, timeoutPromise]);
+    dbStatus = 'connected';
+  } catch (dbErr: any) {
+    dbStatus = dbErr?.message === 'timeout' ? 'connecting' : `degraded: ${dbErr?.message || 'error'}`;
+  }
+
+  let aiStatus = 'offline';
+  try {
+    const aiUrl = process.env.AI_SERVICE_URL || process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
+    const response = await fetch(`${aiUrl}/health`, { signal: AbortSignal.timeout(2000) });
+    if (response.ok) aiStatus = 'online';
+  } catch {}
+
+  res.status(200).json({
+    status: 'healthy',
+    gateway: 'online',
+    database: dbStatus,
+    aiService: aiStatus,
+    timestamp: new Date().toISOString()
+  });
+};
+
+app.get('/api/health', healthCheckHandler);
+app.get('/health', healthCheckHandler);
 
 // Custom interactive Swagger-style REST docs
 app.get('/api/docs', (req, res) => {
@@ -809,6 +886,25 @@ app.get('/api/prediction/report-url/:id', authenticate, async (req, res) => {
   }
 });
 
+// ─── Automated Data Retention Admin Endpoints ───
+app.post('/api/admin/retention/run', authenticate, authorize(['ADMIN']), async (req, res) => {
+  try {
+    const result = await runDataRetentionCleanup();
+    res.status(200).json({ success: true, result });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/admin/retention/status', authenticate, authorize(['ADMIN']), (req, res) => {
+  try {
+    const status = getRetentionStatus();
+    res.status(200).json({ success: true, status });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Startup verification for Gemini API Key and Connection
 const verifyGeminiConfiguration = async () => {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
@@ -845,9 +941,12 @@ const startServer = async () => {
     seedKnowledgeBase().catch(err => {
       logger.warn(`[VectorRAG] Knowledge base seeding deferred: ${err.message}`);
     });
+
+    // Initialize Automated 24-hour Data Retention Scheduler
+    initDataRetentionScheduler();
     
-    httpServer.listen(PORT, () => {
-      logger.info(`✅ REST API Gateway is online at http://localhost:${PORT}`);
+    httpServer.listen(Number(PORT), '0.0.0.0', () => {
+      logger.info(`✅ REST API Gateway is online at http://0.0.0.0:${PORT}`);
     });
   } catch (error: any) {
     logger.error(`Server initialization error: ${error.message}`);

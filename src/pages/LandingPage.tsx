@@ -207,25 +207,26 @@ export default function LandingPage() {
       <div className="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none" />
 
       {/* Header Bar */}
-      <header className="sticky top-0 z-50 glass-panel border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-xs">
-        <Link to="/" className="flex items-center space-x-2.5">
-          <Heart className="h-6 w-6 text-rose-500 animate-pulse" />
-          <span className="font-display font-bold text-xl tracking-tight bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
-            HridayaDarpana
-          </span>
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#c3c5d9]/60 px-8 py-4 flex items-center justify-between shadow-stitch">
+        <Link to="/" className="flex items-center">
+          <img
+            src="/hridayadarpana-logo.png"
+            alt="HridayaDarpana"
+            className="h-9 w-auto object-contain"
+          />
         </Link>
-        <nav className="hidden lg:flex items-center space-x-8 text-sm font-medium text-slate-600">
-          <a href="#interactive" className="hover:text-slate-900 transition-colors">ECG Simulator</a>
-          <a href="#workflow" className="hover:text-slate-900 transition-colors">AI Routing</a>
-          <a href="#preview" className="hover:text-slate-900 transition-colors">Preview</a>
-          <a href="#architecture" className="hover:text-slate-900 transition-colors">Architecture</a>
-          <a href="#testimonials" className="hover:text-slate-900 transition-colors">Reviews</a>
+        <nav className="hidden lg:flex items-center space-x-8 text-sm font-inter font-medium text-[#434656]">
+          <a href="#interactive" className="hover:text-[#003ec7] transition-colors">ECG Simulator</a>
+          <a href="#workflow" className="hover:text-[#003ec7] transition-colors">AI Routing</a>
+          <a href="#preview" className="hover:text-[#003ec7] transition-colors">Preview</a>
+          <a href="#architecture" className="hover:text-[#003ec7] transition-colors">Architecture</a>
+          <a href="#testimonials" className="hover:text-[#003ec7] transition-colors">Reviews</a>
         </nav>
         <div className="flex items-center space-x-4">
-          <Link to="/login" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+          <Link to="/login" className="text-sm font-geist font-semibold text-[#434656] hover:text-[#003ec7] transition-colors">
             Login
           </Link>
-          <Link to="/register" className="px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 shadow-xs transition-all hover:scale-[1.02]">
+          <Link to="/register" className="px-5 py-2.5 text-xs font-geist font-bold rounded-xl bg-[#0052ff] hover:bg-[#003ec7] text-white shadow-md transition-all hover:scale-[1.02]">
             Enter Portal
           </Link>
         </div>
@@ -238,20 +239,20 @@ export default function LandingPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full border border-blue-200 bg-blue-50 text-blue-600 text-[10px] font-bold mb-8 uppercase tracking-widest"
+          className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full border border-[#0052ff]/30 bg-[#eff4ff] text-[#003ec7] text-[10px] font-mono-data font-bold mb-8 uppercase tracking-widest"
         >
-          <Sparkles className="h-3.5 w-3.5 text-blue-600 animate-spin" />
-          <span>Next-Gen Multi-Agent Cardiovascular Intelligence</span>
+          <Sparkles className="h-3.5 w-3.5 text-[#0052ff] animate-spin" />
+          <span>Next-Gen Multi-Agent Cardiovascular Intelligence System</span>
         </motion.div>
         
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="text-4xl sm:text-6xl font-display font-extrabold tracking-tight leading-tight mb-6 text-slate-900"
+          className="text-4xl sm:text-6xl font-geist font-extrabold tracking-tight leading-tight mb-6 text-[#0b1c30]"
         >
-          Enterprise AI Platform for <br />
-          <span className="bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
+          Enterprise AI & 3D Digital Twin for <br />
+          <span className="text-[#0052ff]">
             Cardiovascular Diagnostics & Care
           </span>
         </motion.h1>
@@ -260,9 +261,9 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="text-base sm:text-lg text-slate-600 max-w-3xl mb-10 leading-relaxed font-light mx-auto"
+          className="text-base sm:text-lg font-inter text-[#434656] max-w-3xl mb-10 leading-relaxed font-normal mx-auto"
         >
-          Evaluate patient vitals with ROC-AUC optimized XGBoost pipelines. Inspect game-theoretic SHAP attributions, coordinate specialized diet/exercise agents, parse clinical reports, and audit notes.
+          Evaluate patient vitals with 5 ROC-AUC optimized ML model pipelines. Inspect game-theoretic SHAP attributions, coordinate specialized diet/exercise agents, parse clinical reports, and audit notes.
         </motion.p>
         
         <motion.div
@@ -271,11 +272,11 @@ export default function LandingPage() {
           transition={{ delay: 0.3 }}
           className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 w-full"
         >
-          <Link to="/register" className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold shadow-xs transition-all hover:scale-[1.02] flex items-center justify-center space-x-2">
+          <Link to="/register" className="w-full sm:w-auto px-8 py-4 rounded-xl bg-[#0052ff] hover:bg-[#003ec7] text-white font-geist font-bold text-sm shadow-md transition-all hover:scale-[1.02] flex items-center justify-center space-x-2">
             <span>Access Platform Free</span>
             <ArrowRight className="h-5 w-5" />
           </Link>
-          <a href="#workflow" className="w-full sm:w-auto px-8 py-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold shadow-xs transition-colors flex items-center justify-center">
+          <a href="#workflow" className="w-full sm:w-auto px-8 py-4 rounded-xl border border-[#c3c5d9] bg-white hover:bg-[#f2f4f6] text-[#0b1c30] font-geist font-semibold text-sm shadow-stitch transition-colors flex items-center justify-center">
             Try AI Routing Simulator
           </a>
         </motion.div>
@@ -696,9 +697,12 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="glass-panel border-t border-slate-200/80 bg-white py-12 px-6 mt-auto text-center text-slate-500 text-xs z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
-          <div className="flex items-center space-x-2">
-            <Heart className="h-4 w-4 text-rose-500" />
-            <span className="font-display font-bold text-slate-900 tracking-wide">HridayaDarpana</span>
+          <div className="flex items-center">
+            <img
+              src="/hridayadarpana-logo.png"
+              alt="HridayaDarpana"
+              className="h-8 w-auto object-contain"
+            />
           </div>
           <p>© 2026 HridayaDarpana Enterprise SaaS. All rights reserved.</p>
           <div className="flex space-x-6">

@@ -15,7 +15,24 @@ interface AgentConfig {
 
 export default function ChatPage() {
   const queryClient = useQueryClient();
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('hridaya_active_session_id');
+    }
+    return null;
+  });
+
+  const updateActiveSession = (newSessionId: string | null) => {
+    setActiveSessionId(newSessionId);
+    if (typeof window !== 'undefined') {
+      if (newSessionId) {
+        sessionStorage.setItem('hridaya_active_session_id', newSessionId);
+      } else {
+        sessionStorage.removeItem('hridaya_active_session_id');
+      }
+    }
+  };
+
   const [inputText, setInputText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
@@ -143,7 +160,7 @@ export default function ChatPage() {
     
     if (messagesRes?.messages && messagesRes.messages.length > 0) {
       const lastMsg = messagesRes.messages[messagesRes.messages.length - 1];
-      if (lastMsg.role === 'ASSISTANT') {
+      if (lastMsg.role === 'ASSISTANT' && !lastMsg.isPending) {
         if (lastMsg.agentType) {
           setActiveAgentType(lastMsg.agentType);
           if (lastMsg.agentType === 'EMERGENCY') {
@@ -177,14 +194,16 @@ export default function ChatPage() {
   useEffect(() => {
     if (sessionsRes?.sessions) {
       if (sessionsRes.sessions.length > 0) {
-        if (!activeSessionId) {
-          setActiveSessionId(sessionsRes.sessions[0].id);
+        // If current activeSessionId matches an existing user session, keep it
+        const exists = sessionsRes.sessions.some((s: any) => s.id === activeSessionId);
+        if (!exists || !activeSessionId) {
+          updateActiveSession(sessionsRes.sessions[0].id);
         }
       } else if (!activeSessionId && !createSessionMutation.isPending) {
         createSessionMutation.mutate();
       }
     }
-  }, [sessionsRes]);
+  }, [sessionsRes?.sessions]);
 
   useEffect(() => {
     return () => {
@@ -198,7 +217,7 @@ export default function ChatPage() {
     mutationFn: () => api.post('/chat/sessions'),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
-      setActiveSessionId(data.session.id);
+      updateActiveSession(data.session.id);
       setEmergencyAlert(false);
       setActiveAgentType('ORCHESTRATOR');
       setRoutingLog(null);
@@ -207,36 +226,36 @@ export default function ChatPage() {
 
   const sendMessageMutation = useMutation({
     mutationFn: (body: { message: string; sessionId: string }) => api.post('/chat/message', body),
-    onSuccess: (data) => {
-      // STEP 8 - VERIFY FRONTEND LOGS
-      console.log('\n========================================================');
-      console.log('[STEP 8 - FRONTEND RECEIVED JSON]');
-      console.log(JSON.stringify(data, null, 2));
-
+    onSuccess: (data, variables) => {
       timerRefs.current.forEach(clearTimeout);
       timerRefs.current = [];
       
-      const newSessionId = data.sessionId || activeSessionId;
-      if (newSessionId && newSessionId !== activeSessionId) {
-        setActiveSessionId(newSessionId);
+      const targetSessionId = data.sessionId || variables.sessionId;
+      if (targetSessionId) {
+        updateActiveSession(targetSessionId);
       }
 
-      queryClient.setQueryData(['chatMessages', newSessionId], (oldData: any) => {
-        const oldMsgs = oldData?.messages || [];
-        const assistantMsg = { id: `msg-ast-${Date.now()}`, role: 'ASSISTANT', content: data.reply, agentType: data.agentType };
-        const newMsgs = [...oldMsgs, assistantMsg];
+      // If temporary session id (e.g. session-timestamp) was used, carry over existing messages
+      const previousSessionId = variables.sessionId;
+      const prevData: any = queryClient.getQueryData(['chatMessages', previousSessionId]);
 
-        console.log('[STEP 8 - MESSAGES STATE]');
-        console.log(JSON.stringify(newMsgs, null, 2));
-        console.log(`VERIFICATION assistant.content == response.reply: ${assistantMsg.content === data.reply ? '✅ MATCHES EXACTLY' : '❌ MISMATCH'}`);
-        console.log('========================================================\n');
-
-        return { success: true, messages: newMsgs };
+      queryClient.setQueryData(['chatMessages', targetSessionId], (oldData: any) => {
+        const sourceData = (oldData?.messages && oldData.messages.length > 0) ? oldData : prevData;
+        const oldMsgs = (sourceData?.messages || []).filter((m: any) => !m.isPending);
+        const assistantMsg = {
+          id: `msg-ast-${Date.now()}`,
+          role: 'ASSISTANT',
+          content: data.reply,
+          agentType: data.agentType || 'ORCHESTRATOR'
+        };
+        return { success: true, messages: [...oldMsgs, assistantMsg] };
       });
 
-      queryClient.invalidateQueries({ queryKey: ['chatMessages', newSessionId] });
+      if (previousSessionId && previousSessionId !== targetSessionId) {
+        queryClient.removeQueries({ queryKey: ['chatMessages', previousSessionId] });
+      }
+
       queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
-      setInputText('');
       setRoutingLog(null);
       if (data.debug) {
         setLastDebugInfo(data.debug);
@@ -248,20 +267,34 @@ export default function ChatPage() {
         setEmergencyAlert(true);
       }
     },
-    onError: (err: any) => {
+    onError: (err: any, variables) => {
       console.error('HridyaAI Chat Error:', err);
       timerRefs.current.forEach(clearTimeout);
       timerRefs.current = [];
       setRoutingLog(null);
+
+      const targetSessionId = variables?.sessionId || activeSessionId;
+      queryClient.setQueryData(['chatMessages', targetSessionId], (oldData: any) => {
+        const oldMsgs = (oldData?.messages || []).filter((m: any) => !m.isPending);
+        const errorMsg = {
+          id: `msg-err-${Date.now()}`,
+          role: 'ASSISTANT',
+          content: `Could not reach HridayaAI: ${err.message || 'Network or server error'}. Please check your connection.`,
+          agentType: 'ORCHESTRATOR',
+          isError: true,
+        };
+        return { success: true, messages: [...oldMsgs, errorMsg] };
+      });
+
       if (err.response?.data?.debug) {
         setLastDebugInfo(err.response.data.debug);
       } else {
         setLastDebugInfo({
           geminiConnected: false,
           apiKeyLoaded: false,
-          model: 'unconfigured-fallback',
-          promptSent: 'Request transmission failed',
-          responseReceived: err.message || 'Network error',
+          model: 'gemini-2.5-flash',
+          promptSent: 'Request failed',
+          responseReceived: err.message || 'Connection error',
           latencyMs: 0,
         });
       }
@@ -292,27 +325,47 @@ export default function ChatPage() {
   };
 
   const triggerSend = (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || sendMessageMutation.isPending) return;
     setLastUserPrompt(text);
+    setInputText('');
+
+    const currentSessionId = activeSessionId || `session-${Date.now()}`;
+    if (!activeSessionId) {
+      updateActiveSession(currentSessionId);
+    }
+
+    const clientMsgId = `client-${Date.now()}`;
+
+    // Optimistically render the user message and thinking indicator immediately
+    const userMsg = {
+      id: clientMsgId,
+      clientMessageId: clientMsgId,
+      role: 'USER',
+      content: text,
+      agentType: 'ORCHESTRATOR',
+    };
+
+    const pendingAssistantMsg = {
+      id: `msg-pending-${Date.now()}`,
+      role: 'ASSISTANT',
+      content: '',
+      agentType: activeAgentType,
+      isPending: true,
+    };
+
+    queryClient.setQueryData(['chatMessages', currentSessionId], (oldData: any) => {
+      const oldMsgs = oldData?.messages || [];
+      return { success: true, messages: [...oldMsgs, userMsg, pendingAssistantMsg] };
+    });
 
     timerRefs.current.forEach(clearTimeout);
     timerRefs.current = [];
 
-    setRoutingLog(`HridyaAI Router auditing query context...`);
-    
-    const t1 = setTimeout(() => {
-      setRoutingLog(`Mapping parameters against specialist schemas...`);
-    }, 450);
-    
-    const t2 = setTimeout(() => {
-      setRoutingLog(`Formulating clinical response...`);
-    }, 1000);
-
-    timerRefs.current.push(t1, t2);
+    setRoutingLog(`HridayaAI routing prompt to Gemini 2.5 Flash...`);
 
     sendMessageMutation.mutate({
       message: text,
-      sessionId: activeSessionId || '',
+      sessionId: currentSessionId,
     });
   };
 
@@ -422,52 +475,55 @@ export default function ChatPage() {
       />
     );
   };
-
   const sessions = sessionsRes?.sessions || [];
   const messages = messagesRes?.messages || [];
   const activeAgent = SPECIALISTS[activeAgentType] || SPECIALISTS.ORCHESTRATOR;
   const ActiveAgentIcon = activeAgent.icon;
 
   return (
-    <div className={`glass-panel rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex h-[calc(100vh-140px)] overflow-hidden relative transition-all duration-300 ${
-      activeAgentType === 'EMERGENCY' ? 'ring-2 ring-rose-400 shadow-md' : ''
+    <div className={`bg-white rounded-2xl border border-[#c3c5d9] shadow-stitch flex h-[calc(100dvh-130px)] lg:h-[calc(100vh-140px)] overflow-hidden relative transition-all duration-300 font-sans ${
+      activeAgentType === 'EMERGENCY' ? 'ring-2 ring-[#ba1a1a] shadow-md' : ''
     }`}>
       
-      {/* Left sessions Sidebar */}
-      <div className="hidden md:flex flex-col w-64 border-r border-slate-200/80 p-4 shrink-0 bg-slate-50 h-full">
+      {/* Left Sessions Sidebar */}
+      <div className="hidden md:flex flex-col w-64 border-r border-[#e5eeff] p-4 shrink-0 bg-[#f8f9ff] h-full">
         <button
           onClick={() => createSessionMutation.mutate()}
-          className="w-full py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center justify-center space-x-2 transition-colors mb-4 focus:outline-none shadow-xs"
+          className="w-full py-2.5 rounded-xl border border-[#c3c5d9] bg-white hover:bg-[#eff4ff] text-[#0052ff] text-xs font-geist font-bold flex items-center justify-center space-x-2 transition-all mb-4 focus:outline-none shadow-xs"
         >
-          <Plus className="h-4 w-4 text-blue-600" />
+          <Plus className="h-4 w-4 text-[#0052ff]" />
           <span>New Consultation</span>
         </button>
 
         {sessionsLoading ? (
           <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="h-5 w-5 text-slate-400 animate-spin" />
+            <Loader2 className="h-5 w-5 text-[#0052ff] animate-spin" />
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
-            {sessions.map((sess: any) => (
-              <button
-                key={sess.id}
-                onClick={() => {
-                  setActiveSessionId(sess.id);
-                  setEmergencyAlert(false);
-                  setParsedReport(null);
-                  setRoutingLog(null);
-                  setActiveAgentType('ORCHESTRATOR');
-                }}
-                className={`w-full text-left px-4 py-3 rounded-xl text-xs font-medium transition-all truncate block ${
-                  activeSessionId === sess.id
-                    ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600 font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                }`}
-              >
-                {sess.title}
-              </button>
-            ))}
+          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-none">
+            {sessions.map((sess: any) => {
+              const isActive = sess.id === activeSessionId;
+              return (
+                <button
+                  key={sess.id}
+                  onClick={() => {
+                    updateActiveSession(sess.id);
+                    setEmergencyAlert(false);
+                    setParsedReport(null);
+                    setRoutingLog(null);
+                    setActiveAgentType('ORCHESTRATOR');
+                  }}
+                  className={`w-full text-left p-3 rounded-xl text-xs transition-all flex items-center space-x-2.5 border ${
+                    isActive
+                      ? 'bg-[#0052ff] text-white border-[#0052ff] font-geist font-bold shadow-md'
+                      : 'bg-white text-[#0b1c30] hover:bg-[#eff4ff] border-[#e5eeff] font-inter font-medium'
+                  }`}
+                >
+                  <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-[#737688]'}`} />
+                  <span className="truncate">{sess.title || 'General Consultation'}</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -628,10 +684,10 @@ export default function ChatPage() {
                 return (
                   <div
                     key={msg.id || mIdx}
-                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${isUser ? 'justify-end' : 'justify-start'} transition-opacity duration-150`}
                   >
                     <div
-                      className={`max-w-[85%] sm:max-w-[70%] p-4 rounded-2xl shadow-xs relative group ${
+                      className={`max-w-[88%] sm:max-w-[75%] p-4 rounded-2xl shadow-xs relative group ${
                         isUser
                           ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-tr-none'
                           : 'glass-panel border-slate-200/80 bg-white text-slate-900 rounded-tl-none shadow-xs'
@@ -680,7 +736,14 @@ export default function ChatPage() {
                       )}
 
                       {/* Content Body */}
-                      {renderMessageContent(msg.content, msg.id || String(mIdx), isStreamingNow)}
+                      {msg.isPending ? (
+                        <div className="flex items-center space-x-2.5 py-1 text-slate-500 text-xs">
+                          <Sparkles className="h-4 w-4 text-blue-600 animate-spin" />
+                          <span className="animate-pulse font-medium">HridayaAI is thinking with Gemini...</span>
+                        </div>
+                      ) : (
+                        renderMessageContent(msg.content, msg.id || String(mIdx), isStreamingNow)
+                      )}
 
                       {/* Expandable Clinical Citations Panel */}
                       {!isUser && isCitationOpen && (
@@ -690,9 +753,9 @@ export default function ChatPage() {
                             <span>Clinical Reference Citations</span>
                           </p>
                           <ul className="space-y-0.5 text-slate-600 font-mono text-[9.5px]">
-                            <li>• ACC/AHA 2024 Guidelines for Management of High Blood Pressure</li>
-                            <li>• ESC Clinical Guidelines for Heart Failure & Hypertrophy</li>
-                            <li>• National Heart, Lung, and Blood Institute (NHLBI) DASH Eating Plan</li>
+                            <li>• ACC/AHA Guidelines for Cardiovascular Disease Prevention</li>
+                            <li>• ESC Clinical Practice Guidelines for Heart Disease Assessment</li>
+                            <li>• National Heart, Lung, and Blood Institute (NHLBI) DASH Framework</li>
                           </ul>
                         </div>
                       )}

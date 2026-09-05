@@ -2,37 +2,46 @@ import React, { useEffect, useState, useRef } from 'react';
 
 export default function CustomCursor() {
   const [isVisible, setIsVisible] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(true); // Default to true to prevent hydration mismatch / mobile lag
 
   const mousePos = useRef({ x: -100, y: -100 });
   const followerPos = useRef({ x: -100, y: -100 });
+  const isHoveredRef = useRef(false);
   
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const animFrameId = useRef<number | null>(null);
 
   useEffect(() => {
-    // Check if touch device / mobile screen
+    // 1. Immediately disable on touch, mobile screens, or Capacitor native platform
+    const isCapacitor = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+    const isTouch = isCapacitor || window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 1024;
+    
+    if (isTouch) {
+      setIsMobile(true);
+      return;
+    }
+    setIsMobile(false);
+
     const checkMobile = () => {
-      const isTouch = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768;
-      setIsMobile(isTouch);
+      const isTouchNow = Boolean((window as any).Capacitor?.isNativePlatform?.()) || 
+        window.matchMedia('(pointer: coarse)').matches || 
+        window.innerWidth < 1024;
+      setIsMobile(isTouchNow);
     };
 
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
+    window.addEventListener('resize', checkMobile, { passive: true });
 
     const handleMouseMove = (e: MouseEvent) => {
       mousePos.current = { x: e.clientX, y: e.clientY };
       if (!isVisible) setIsVisible(true);
 
-      // Check if mouse is hovering over an interactive element
       const target = e.target as HTMLElement | null;
       if (target) {
         const isInteractive = Boolean(
           target.closest('button, a, input, select, textarea, [role="button"], [data-hover="true"], .cursor-pointer')
         );
-        setIsHovered(isInteractive);
+        isHoveredRef.current = isInteractive;
       }
     };
 
@@ -40,12 +49,10 @@ export default function CustomCursor() {
       setIsVisible(false);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseleave', handleMouseLeave);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    document.addEventListener('mouseleave', handleMouseLeave, { passive: true });
 
-    // Smooth linear interpolation (lerp) loop for spring follower ring
     const render = () => {
-      // Lerp coefficient for smooth spring follower
       const ease = 0.18;
       followerPos.current.x += (mousePos.current.x - followerPos.current.x) * ease;
       followerPos.current.y += (mousePos.current.y - followerPos.current.y) * ease;
@@ -55,7 +62,8 @@ export default function CustomCursor() {
       }
 
       if (ringRef.current) {
-        ringRef.current.style.transform = `translate3d(${followerPos.current.x}px, ${followerPos.current.y}px, 0) translate(-50%, -50%) scale(${isHovered ? 1.6 : 1})`;
+        const scale = isHoveredRef.current ? 1.6 : 1;
+        ringRef.current.style.transform = `translate3d(${followerPos.current.x}px, ${followerPos.current.y}px, 0) translate(-50%, -50%) scale(${scale})`;
       }
 
       animFrameId.current = requestAnimationFrame(render);
@@ -69,7 +77,7 @@ export default function CustomCursor() {
       document.removeEventListener('mouseleave', handleMouseLeave);
       if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
     };
-  }, [isVisible, isHovered]);
+  }, []); // Run ONCE on mount
 
   if (isMobile || !isVisible) return null;
 
@@ -85,11 +93,7 @@ export default function CustomCursor() {
       {/* Smooth follower ring */}
       <div
         ref={ringRef}
-        className={`fixed top-0 left-0 w-9 h-9 rounded-full pointer-events-none z-[9998] transition-all duration-200 ease-out ${
-          isHovered
-            ? 'border-2 border-blue-500 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.35)]'
-            : 'border border-blue-500/40 bg-blue-500/5 shadow-[0_0_12px_rgba(59,130,246,0.15)]'
-        }`}
+        className="fixed top-0 left-0 w-9 h-9 rounded-full pointer-events-none z-[9998] transition-[border-color,background-color] duration-200 ease-out border border-blue-500/40 bg-blue-500/5 shadow-[0_0_12px_rgba(59,130,246,0.15)]"
         style={{ willChange: 'transform' }}
       />
     </>

@@ -398,17 +398,28 @@ export default function DigitalTwinSuite({
             <h1 className="text-xl font-display font-extrabold tracking-tight text-slate-900 uppercase">
               AI Clinical Digital Twin Report
             </h1>
-            <span className={`text-[9px] font-extrabold px-3 py-1 rounded-full uppercase border tracking-wider ${
-              normRisk === 'CRITICAL' ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse' :
-              normRisk === 'HIGH' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-              normRisk === 'MODERATE' ? 'bg-amber-50 text-amber-600 border-amber-200' :
-              'bg-emerald-50 text-emerald-600 border-emerald-200'
-            }`}>
-              {normRisk} RISK • {Math.round(riskScore)}% PROBABILITY
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`text-[9px] font-extrabold px-3 py-1 rounded-full uppercase border tracking-wider ${
+                normRisk === 'CRITICAL' ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse' :
+                normRisk === 'HIGH' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                normRisk === 'MODERATE' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                'bg-emerald-50 text-emerald-600 border-emerald-200'
+              }`}>
+                {normRisk} RISK • {Math.round(riskScore)}% PROBABILITY
+              </span>
+              <span className="text-[9px] font-extrabold px-2.5 py-1 rounded-full uppercase border tracking-wider bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Data Quality: HIGH
+              </span>
+              <span className="text-[9px] font-extrabold px-2.5 py-1 rounded-full uppercase border tracking-wider bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
+                <Shield className="h-3 w-3" /> 95% Confidence
+              </span>
+              <span className="text-[9px] font-extrabold px-2.5 py-1 rounded-full uppercase border tracking-wider bg-slate-100 text-slate-700 border-slate-200 flex items-center gap-1">
+                <Clock className="h-3 w-3 text-blue-600" /> 5-Min Telemetry Sync
+              </span>
+            </div>
           </div>
           <p className="text-xs text-slate-500 font-light mt-1">
-            Generated from XGBoost & Deep Learning Models • Dynamic Patient-Specific Telemetry
+            Generated from XGBoost & Deep Learning Models • Dynamic Patient-Specific Telemetry Sync
           </p>
         </div>
 

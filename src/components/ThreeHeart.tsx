@@ -42,8 +42,8 @@ const AURA_COLORS = {
   CRITICAL: '#ef4444',
 };
 
-// Dynamic Camera & OrbitControls Auto-Fitter with Camera Micro-Recoil Impulse on Ejection Peak
-function DynamicCameraAndControlsFitter({ modelSphereRadius, cardiacPhase = 0 }: { modelSphereRadius: number; cardiacPhase?: number }) {
+// Dynamic Camera & OrbitControls Auto-Fitter
+function DynamicCameraAndControlsFitter({ modelSphereRadius }: { modelSphereRadius: number }) {
   const { camera, size: canvasSize } = useThree();
   const controlsRef = useRef<any>(null);
 
@@ -51,7 +51,7 @@ function DynamicCameraAndControlsFitter({ modelSphereRadius, cardiacPhase = 0 }:
     if (modelSphereRadius <= 0) return;
     const perspCam = camera as THREE.PerspectiveCamera;
     const fovRad = (perspCam.fov * Math.PI) / 360;
-    const aspect = canvasSize.width / canvasSize.height;
+    const aspect = canvasSize.width / Math.max(canvasSize.height, 1);
     const fovH = 2 * Math.atan(Math.tan(fovRad) * aspect);
     const minHalfFov = Math.min(fovRad, fovH / 2);
 
@@ -59,14 +59,7 @@ function DynamicCameraAndControlsFitter({ modelSphereRadius, cardiacPhase = 0 }:
     const fillFactor = 0.75;
     const dist = modelSphereRadius / (Math.sin(minHalfFov) * fillFactor);
 
-    // Subtle micro camera recoil on Ventricular Ejection Peak
-    let impulse = 0;
-    if (cardiacPhase >= 0.15 && cardiacPhase <= 0.35) {
-      const normP = (cardiacPhase - 0.15) / 0.20;
-      impulse = Math.sin(normP * Math.PI) * 0.0025 * modelSphereRadius;
-    }
-
-    perspCam.position.set(0, 0, dist - impulse);
+    perspCam.position.set(0, 0, dist);
     perspCam.near = Math.max(0.001, dist * 0.01);
     perspCam.far = dist * 30.0;
     perspCam.updateProjectionMatrix();
@@ -77,12 +70,12 @@ function DynamicCameraAndControlsFitter({ modelSphereRadius, cardiacPhase = 0 }:
       controlsRef.current.maxDistance = dist * 2.5;
       controlsRef.current.update();
     }
-  }, [camera, canvasSize, modelSphereRadius, cardiacPhase]);
+  }, [camera, canvasSize, modelSphereRadius]);
 
   return (
     <OrbitControls
       ref={controlsRef}
-      enableZoom={true}
+      enableZoom={false}
       enablePan={false}
       enableDamping={true}
       dampingFactor={0.05}
@@ -97,7 +90,10 @@ function DynamicCameraAndControlsFitter({ modelSphereRadius, cardiacPhase = 0 }:
 // Realistic 3D Arterial Blood Flow Particles System
 function BloodFlowParticles({ radius, heartRate }: { radius: number; heartRate: number }) {
   const particlesRef = useRef<THREE.Points>(null);
-  const particleCount = 110;
+  const isMobile = useMemo(() => {
+    return typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
+  }, []);
+  const particleCount = isMobile ? 35 : 100;
 
   const [positions, speedOffsets] = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
@@ -171,9 +167,8 @@ function OfficialGlbDigitalTwinHeart({
   onHoverPart,
   onDebugInfo,
   onBeatPulse,
-  onPhaseComputed,
   onSphereRadiusComputed,
-}: DigitalTwinProps & { onSphereRadiusComputed: (r: number) => void; onPhaseComputed?: (phase: number) => void }) {
+}: DigitalTwinProps & { onSphereRadiusComputed: (r: number) => void }) {
   const groupRef = useRef<THREE.Group>(null);
   const auraRef = useRef<THREE.Mesh>(null);
   const pulseRingRef = useRef<THREE.Mesh>(null);
@@ -337,7 +332,6 @@ function OfficialGlbDigitalTwinHeart({
     const cardiacPhase = (t / beatDuration) % 1.0; // 0.0 to 1.0 normalized beat phase
 
     onBeatPulse?.(cardiacPhase);
-    onPhaseComputed?.(cardiacPhase);
 
     // 2. Drive AnimationMixer playback speed strictly based on patient BPM
     if (mixerRef.current) {
@@ -509,7 +503,6 @@ export default function ThreeHeart({
   const containerRef = useRef<HTMLDivElement>(null);
   const [frameloop, setFrameloop] = useState<'always' | 'never'>('always');
   const [sphereRadius, setSphereRadius] = useState<number>(0.1093);
-  const [currentPhase, setCurrentPhase] = useState<number>(0);
   const [hoveredPart, setHoveredPart] = useState<string | null>(null);
 
   const handleHoverPartInternal = (part: string | null) => {
@@ -528,6 +521,10 @@ export default function ThreeHeart({
 
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
+  }, []);
+
+  const isMobile = useMemo(() => {
+    return typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
   }, []);
 
   return (
@@ -568,9 +565,11 @@ export default function ThreeHeart({
 
       <Canvas
         frameloop={frameloop}
+        dpr={isMobile ? 1 : Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 1.5)}
+        performance={{ min: 0.5 }}
         camera={{ fov: 42, near: 0.001, far: 100 }}
         gl={{
-          antialias: true,
+          antialias: !isMobile,
           powerPreference: 'high-performance',
           alpha: true,
           toneMapping: THREE.ACESFilmicToneMapping,
@@ -578,19 +577,23 @@ export default function ThreeHeart({
         }}
         className="w-full h-full"
       >
-        <DynamicCameraAndControlsFitter modelSphereRadius={sphereRadius} cardiacPhase={currentPhase} />
+        <DynamicCameraAndControlsFitter modelSphereRadius={sphereRadius} />
 
         {/* Environment HDRI for Realistic PBR Metalness/Roughness Surface Detail */}
         <Suspense fallback={null}>
           <Environment preset="studio" />
         </Suspense>
 
-        {/* Ambient & Professional Soft Rim Lighting */}
-        <ambientLight intensity={0.75} />
-        <directionalLight position={[5, 8, 5]} intensity={1.3} color="#ffffff" castShadow />
-        <directionalLight position={[-5, -4, -5]} intensity={0.6} color="#60a5fa" />
-        <pointLight position={[0, 3, 4]} intensity={0.9} color="#f87171" />
-        <pointLight position={[-4, 2, -4]} intensity={1.4} color="#3b82f6" />
+        {/* Ambient & Professional Soft Rim Lighting (Optimized for Mobile) */}
+        <ambientLight intensity={isMobile ? 0.9 : 0.75} />
+        <directionalLight position={[5, 8, 5]} intensity={isMobile ? 1.0 : 1.3} color="#ffffff" castShadow={!isMobile} />
+        {!isMobile && (
+          <>
+            <directionalLight position={[-5, -4, -5]} intensity={0.6} color="#60a5fa" />
+            <pointLight position={[0, 3, 4]} intensity={0.9} color="#f87171" />
+          </>
+        )}
+        <pointLight position={[-4, 2, -4]} intensity={isMobile ? 1.0 : 1.4} color="#3b82f6" />
 
         {/* Official GLB Digital Twin Heart */}
         <OfficialGlbDigitalTwinHeart
@@ -609,7 +612,6 @@ export default function ThreeHeart({
           onHoverPart={handleHoverPartInternal}
           onDebugInfo={onDebugInfo}
           onBeatPulse={onBeatPulse}
-          onPhaseComputed={setCurrentPhase}
           onSphereRadiusComputed={setSphereRadius}
         />
       </Canvas>

@@ -10,7 +10,8 @@
     "start": "node dist/server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "verify": "tsx test_full_verification.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

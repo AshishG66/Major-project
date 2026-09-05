@@ -105,10 +105,10 @@ export default function DoctorPortalPage() {
   ];
 
   return (
-    <div className="glass-panel rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col lg:flex-row h-[calc(100vh-140px)] overflow-hidden relative">
+    <div className="glass-panel rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-140px)] min-h-[550px] overflow-hidden relative">
       
       {/* Patient Directory Sidebar */}
-      <div className="w-full lg:w-72 border-r border-slate-200/80 p-4 bg-slate-50 h-full flex flex-col shrink-0">
+      <div className="w-full lg:w-72 border-r border-slate-200/80 p-4 bg-slate-50 h-auto lg:h-full flex flex-col shrink-0">
         <div className="px-3 py-2.5 border-b border-slate-200/80 mb-4 shrink-0">
           <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center justify-between">
             <span>Patient Queue ({sortedPatients.length})</span>
@@ -117,11 +117,11 @@ export default function DoctorPortalPage() {
         </div>
 
         {patientsLoading ? (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center p-6">
             <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+          <div className="max-h-64 lg:max-h-none lg:flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
             {sortedPatients.map((pat: any) => {
               const latestPred = pat.predictions[0];
               const isHigh = latestPred?.riskLevel === 'HIGH';

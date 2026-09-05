@@ -36,7 +36,7 @@ orchestrator = None
 def get_orchestrator():
     global orchestrator
     if orchestrator is None:
-        orchestrator = UnifiedAIOrchestrator(models_dir="ai/models/")
+        orchestrator = UnifiedAIOrchestrator()
     return orchestrator
 
 @app.on_event("startup")

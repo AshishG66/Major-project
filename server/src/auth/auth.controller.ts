@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../config/db.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { logger } from '../config/logger.js';
+import { createAuditLogEntry } from '../services/hashChainService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'hridyadarpan_super_secret_jwt_key_2026';
 const REFRESH_SECRET = process.env.REFRESH_SECRET || 'hridyadarpan_super_secret_refresh_key_2026';
@@ -106,7 +107,7 @@ export const register = async (req: Request, res: Response) => {
       });
 
       return newUser;
-    });
+    }, { timeout: 15000 });
 
     const { accessToken, refreshToken } = generateTokens(user);
 
@@ -157,9 +158,21 @@ export const login = async (req: Request, res: Response) => {
 
     const { email, password } = parsed.data;
 
+    // Retrieve ONLY fields required to authenticate and establish identity (no heavy relations)
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { profile: true },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        role: true,
+        profile: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
     });
 
     if (!user || !(await argon2.verify(user.passwordHash, password))) {
@@ -171,24 +184,7 @@ export const login = async (req: Request, res: Response) => {
 
     const { accessToken, refreshToken } = generateTokens(user);
 
-    // Save session
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    // Log action
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'USER_LOGIN',
-        details: 'User logged in successfully',
-      },
-    });
-
+    // Set HTTP-only refresh cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -196,6 +192,7 @@ export const login = async (req: Request, res: Response) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
+    // Send minimal authenticated response immediately on the critical path
     res.status(200).json({
       success: true,
       accessToken,
@@ -207,6 +204,33 @@ export const login = async (req: Request, res: Response) => {
         firstName: user.profile?.firstName,
         lastName: user.profile?.lastName,
       },
+    });
+
+    // Background/non-blocking session persistence & tamper-evident SHA-256 audit logging
+    setImmediate(async () => {
+      try {
+        await prisma.session.create({
+          data: {
+            userId: user.id,
+            refreshToken,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        });
+      } catch (sessionErr: any) {
+        logger.error(`[Auth Background Session Error] Failed to persist session for ${user.id}: ${sessionErr.message}`);
+      }
+
+      try {
+        await createAuditLogEntry({
+          userId: user.id,
+          eventType: 'AUTH',
+          action: 'USER_LOGIN',
+          details: 'User logged in successfully',
+          ipAddress: req.ip || undefined,
+        });
+      } catch (auditErr: any) {
+        logger.error(`[Auth Background Audit Error] Failed to record audit log for ${user.id}: ${auditErr.message}`);
+      }
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -322,7 +346,7 @@ export const getMe = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Unauthenticated' });
     }
 
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
         profile: true,
@@ -331,16 +355,7 @@ export const getMe = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      user = await prisma.user.findFirst({
-        include: {
-          profile: true,
-          medicalHistory: true,
-        },
-      });
-    }
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(401).json({ success: false, message: 'User not found or session has expired' });
     }
 
     res.status(200).json({
@@ -349,6 +364,8 @@ export const getMe = async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         role: user.role,
+        firstName: user.profile?.firstName,
+        lastName: user.profile?.lastName,
         profile: user.profile,
         medicalHistory: user.medicalHistory,
       },

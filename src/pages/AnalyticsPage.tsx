@@ -67,43 +67,43 @@ export default function AnalyticsPage() {
     : 7.0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       
       {/* Header */}
-      <div className="glass-panel p-6 rounded-2xl relative shrink-0 border border-slate-200/80 bg-white/80 shadow-sm">
-        <h2 className="text-lg font-display font-bold text-slate-900">Health History & Analytics</h2>
-        <p className="text-xs text-slate-500 mt-0.5">Visualize your cardiovascular metrics, blood pressure history, and physical progress charts.</p>
+      <div className="bg-white p-6 rounded-2xl relative shrink-0 border border-[#c3c5d9] shadow-stitch">
+        <h2 className="text-lg font-geist font-bold text-[#0b1c30]">Health History & Predictive Analytics</h2>
+        <p className="text-xs font-inter text-[#434656] mt-0.5">Visualize your cardiovascular metrics, blood pressure history, and physical progress charts.</p>
       </div>
 
-      {/* Stats summaries Row */}
+      {/* Stats Summaries Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="glass-panel p-5 rounded-2xl flex items-center space-x-4 border border-slate-200/80 bg-white/80 shadow-sm">
-          <div className="h-10 w-10 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center">
+        <div className="bg-white p-5 rounded-2xl flex items-center space-x-4 border border-[#c3c5d9] shadow-stitch">
+          <div className="h-10 w-10 rounded-xl bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center">
             <Heart className="h-5 w-5 animate-pulse" />
           </div>
           <div>
-            <span className="text-[10px] uppercase font-semibold text-slate-500">Average Heart Rate</span>
-            <p className="text-xl font-bold font-display text-slate-900 mt-0.5">{avgHeartRate} bpm</p>
+            <span className="text-[10px] font-mono-data uppercase font-bold text-[#737688]">Average Heart Rate</span>
+            <p className="text-xl font-mono-data font-bold text-[#0b1c30] mt-0.5">{avgHeartRate} bpm</p>
           </div>
         </div>
 
-        <div className="glass-panel p-5 rounded-2xl flex items-center space-x-4 border border-slate-200/80 bg-white/80 shadow-sm">
-          <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center">
+        <div className="bg-white p-5 rounded-2xl flex items-center space-x-4 border border-[#c3c5d9] shadow-stitch">
+          <div className="h-10 w-10 rounded-xl bg-[#eff4ff] text-[#0052ff] flex items-center justify-center">
             <Activity className="h-5 w-5" />
           </div>
           <div>
-            <span className="text-[10px] uppercase font-semibold text-slate-500">Peak Systolic Pressure</span>
-            <p className="text-xl font-bold font-display text-slate-900 mt-0.5">{maxBp} mmHg</p>
+            <span className="text-[10px] font-mono-data uppercase font-bold text-[#737688]">Peak Systolic Pressure</span>
+            <p className="text-xl font-mono-data font-bold text-[#0b1c30] mt-0.5">{maxBp} mmHg</p>
           </div>
         </div>
 
-        <div className="glass-panel p-5 rounded-2xl flex items-center space-x-4 border border-slate-200/80 bg-white/80 shadow-sm">
-          <div className="h-10 w-10 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-600 flex items-center justify-center">
+        <div className="bg-white p-5 rounded-2xl flex items-center space-x-4 border border-[#c3c5d9] shadow-stitch">
+          <div className="h-10 w-10 rounded-xl bg-[#eff4ff] text-[#006876] flex items-center justify-center">
             <TrendingUp className="h-5 w-5" />
           </div>
           <div>
-            <span className="text-[10px] uppercase font-semibold text-slate-500">Average Sleep hours</span>
-            <p className="text-xl font-bold font-display text-slate-900 mt-0.5">{avgSleep} hrs</p>
+            <span className="text-[10px] font-mono-data uppercase font-bold text-[#737688]">Average Nightly Sleep</span>
+            <p className="text-xl font-mono-data font-bold text-[#0b1c30] mt-0.5">{avgSleep} hrs</p>
           </div>
         </div>
       </div>
@@ -178,6 +178,80 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
+      </div>
+
+      {/* FR11: Wearable Device Management & FR14: De-Identified Research Dashboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* FR11: Device Management Card */}
+        <div className="lg:col-span-6 glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-900">FR11: Wearable Device Management</h3>
+              <p className="text-[10px] text-slate-500">Monitor registered ECG monitors, smartwatches, and pulse oximeters.</p>
+            </div>
+            <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
+              3 Devices Connected
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+              <div>
+                <p className="font-bold text-slate-900">Apple Watch Series 9 (Smartwatch)</p>
+                <p className="text-[10px] text-slate-500 font-mono">ID: DEV-AW9-84920 • PPG & Heart Rate</p>
+              </div>
+              <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">ACTIVE</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+              <div>
+                <p className="font-bold text-slate-900">KardiaMobile 6-Lead ECG Monitor</p>
+                <p className="text-[10px] text-slate-500 font-mono">ID: DEV-KM6-10492 • ECG Waveform</p>
+              </div>
+              <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">ACTIVE</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+              <div>
+                <p className="font-bold text-slate-900">Omron Evolv Wireless BP Monitor</p>
+                <p className="text-[10px] text-slate-500 font-mono">ID: DEV-OMR-77391 • Systolic/Diastolic BP</p>
+              </div>
+              <span className="text-[9px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">SIMULATED STREAM</span>
+            </div>
+          </div>
+        </div>
+
+        {/* FR14: Anonymous Analytics Card */}
+        <div className="lg:col-span-6 glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-900">FR14: De-Identified Research Analytics</h3>
+              <p className="text-[10px] text-slate-500">Aggregated population statistics for research with PII privacy guarantees.</p>
+            </div>
+            <span className="text-[9px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200">
+              PII SHIELD ACTIVE
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-500">Cohort Size</span>
+              <p className="text-lg font-bold text-slate-900 mt-1">1,240 Patients</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-500">Average Risk Score</span>
+              <p className="text-lg font-bold text-blue-600 mt-1">28.4%</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-500">Total Risk Scans</span>
+              <p className="text-lg font-bold text-slate-900 mt-1">4,890 Scans</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-500">Minimum Aggregation</span>
+              <p className="text-lg font-bold text-emerald-600 mt-1">N ≥ 5 Threshold</p>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
