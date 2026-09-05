@@ -1,0 +1,411 @@
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+model User {
+  id                   String            @id @default(uuid())
+  email                String            @unique
+  passwordHash         String
+  role                 String            @default("USER") // USER, DOCTOR, ADMIN
+  twoFactorSecret      String?           // Base32 TOTP secret
+  twoFactorEnabled     Boolean           @default(false)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  
+  profile              UserProfile?
+  medicalHistory       MedicalHistory?
+  predictions          Prediction[]
+  healthScores         HealthScore[]
+  lifestyleLogs        LifestyleLog[]
+  dietPlans            DietPlan[]
+  exercisePlans        ExercisePlan[]
+  chatSessions         ChatSession[]
+  reports              Report[]
+  notifications        Notification[]
+  emergencyContacts    EmergencyContact[]
+  sessions             Session[]
+  auditLogs            AuditLog[]
+  reminders            Reminder[]
+  achievements         UserBadge[]
+  aiTelemetryLogs      AITelemetryLog[]
+  
+  // Portals & Family Relational Links
+  familyMembers        FamilyMember[]    @relation("PrimaryUser")
+  linkedFamilyProfiles FamilyMember[]    @relation("LinkedUser")
+  
+  doctorNotes          DoctorNote[]      @relation("PatientUser")
+  writtenNotes         DoctorNote[]      @relation("DoctorUser")
+
+  // Phase-I SRS Requirements
+  sensorData           SensorData[]
+  digitalTwinState     DigitalTwinState?
+  alerts               Alert[]
+  devices              Device[]
+}
+
+model UserProfile {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime
+  gender      String    // MALE, FEMALE, OTHER
+  height      Float     // in cm
+  weight      Float     // in kg
+  updatedAt   DateTime  @updatedAt
+}
+
+model MedicalHistory {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hasDiabetes     Boolean  @default(false)
+  familyHistory   Boolean  @default(false)
+  smokingStatus   String   // NEVER, FORMER, ACTIVE
+  alcoholLevel    String   // NONE, LIGHT, MODERATE, HEAVY
+  allergies       String?
+  chronicDiseases String?
+  updatedAt       DateTime @updatedAt
+}
+
+model Prediction {
+  id                String             @id @default(uuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  riskScore         Float              
+  riskLevel         String             // LOW, MODERATE, HIGH
+  confidenceScore   Float
+  modelName         String             // XGBOOST, RANDOM_FOREST, GRADIENT_BOOST
+  factors           PredictionFactors?
+  shapExplanation   Json               // Store SHAP values json directly
+  plainExplanation  String             @db.Text
+  risk30Day         Float?             // 30-day risk probability percentage
+  risk1Year         Float?             // 1-year risk probability percentage
+  risk5Year         Float?             // 5-year risk probability percentage
+  modelVersion      String?            @default("v2.1-ClinicalEnsemble")
+  horizonConfidence Json?              // Confidence/uncertainty info per horizon
+  createdAt         DateTime           @default(now())
+}
+
+model PredictionFactors {
+  id                String     @id @default(uuid())
+  predictionId      String     @unique
+  prediction        Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  age               Int
+  gender            String
+  height            Float
+  weight            Float
+  bmi               Float
+  systolicBP        Int
+  diastolicBP       Int
+  cholesterol       Int
+  heartRate         Int
+  bloodSugar        Int
+  ecgResult         String     // NORMAL, ST_T_ABNORMAL, LV_HYPERTROPHY
+  exerciseFrequency Int
+  smoking           Boolean
+  alcohol           Boolean
+  diabetes          Boolean
+  familyHistory     Boolean
+  chestPainType     String     // TYPICAL, ATYPICAL, NON_ANGINAL, ASYMPTOMATIC
+  sleepDuration     Float
+  stressLevel       Int
+}
+
+model HealthScore {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score       Int      // 0 - 100
+  cardioIndex Float
+  createdAt   DateTime @default(now())
+}
+
+model LifestyleLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  waterIntake Float    // Liters
+  sleepHours  Float
+  stepsCount  Int      @default(0)
+  activeMins  Int      @default(0)
+  stressLevel Int
+  date        DateTime @default(now())
+}
+
+model DietPlan {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planData    Json
+  calories    Int
+  macroCarbs  Int
+  macroPro    Int
+  macroFat    Int
+  createdAt   DateTime @default(now())
+  isActive    Boolean  @default(true)
+}
+
+model ExercisePlan {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planData    Json
+  targetMins  Int
+  createdAt   DateTime @default(now())
+  isActive    Boolean  @default(true)
+}
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String        @default("New Chat")
+  createdAt DateTime      @default(now())
+  messages  ChatMessage[]
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String      // USER, SYSTEM, ASSISTANT
+  content   String      @db.Text
+  agentType String      @default("ORCHESTRATOR") // ORCHESTRATOR, DIAGNOSIS, DIET, EXERCISE, EMERGENCY, REPORT
+  createdAt DateTime    @default(now())
+}
+
+model Report {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String   
+  fileUrl      String   
+  fileType     String   // IMAGE, PDF
+  parsedValues Json?    
+  summary      String?  @db.Text
+  createdAt    DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // MEDICINE, REMINDER, ALARM, SYSTEM
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Reminder {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  time      String   
+  type      String   // WATER, MEDICINE, EXERCISE, SLEEP, APPOINTMENT
+  daysOfWeek String  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model UserBadge {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeName   String   // HEALTHY_HEART, HYDRATION_HERO, STEPS_CHAMPION
+  description String
+  awardedAt   DateTime @default(now())
+}
+
+model FamilyMember {
+  id           String   @id @default(uuid())
+  primaryUserId String
+  primaryUser  User     @relation("PrimaryUser", fields: [primaryUserId], references: [id], onDelete: Cascade)
+  
+  linkedUserId String?  @unique
+  linkedUser   User?    @relation("LinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  
+  relationship String   
+  name         String
+  createdAt    DateTime @default(now())
+}
+
+model DoctorNote {
+  id          String   @id @default(uuid())
+  patientId   String
+  patient     User     @relation("PatientUser", fields: [patientId], references: [id], onDelete: Cascade)
+  
+  doctorId    String
+  doctor      User     @relation("DoctorUser", fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  note        String   @db.Text
+  createdAt   DateTime @default(now())
+}
+
+model EmergencyContact {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String
+  phoneNumber  String
+  createdAt    DateTime @default(now())
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  patientId    String?
+  eventType    String   @default("GENERIC")
+  action       String
+  details      String   @db.Text
+  ipAddress    String?
+  previousHash String?  @default("GENESIS_BLOCK_00000000000000000000000000000000")
+  currentHash  String?
+  createdAt    DateTime @default(now())
+}
+
+// ─── FR1: Time-Series Physiological Sensor Data Ingestion ───
+model SensorData {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String?
+  device       Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  heartRate    Int?
+  hrv          Float?   // Heart Rate Variability (ms)
+  systolicBP   Int?
+  diastolicBP  Int?
+  spo2         Float?   // Blood Oxygen (%)
+  ecgValue     Float?   // mV or index
+  ppgValue     Float?   
+  activityMins Int?     @default(0)
+  sleepHours   Float?   @default(0)
+  temperature  Float?   // Celsius
+  weight       Float?   // kg
+  glucose      Int?     // mg/dL
+  confidence   Float    @default(0.95)
+  dataQuality  String   @default("HIGH") // HIGH, MEDIUM, LOW
+  isSimulated  Boolean  @default(false)
+  timestamp    DateTime @default(now())
+  createdAt    DateTime @default(now())
+}
+
+// ─── FR2: Digital Twin Physiological State ───
+model DigitalTwinState {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  heartRate       Int      @default(72)
+  hrv             Float    @default(45.0)
+  systolicBP      Int      @default(120)
+  diastolicBP     Int      @default(80)
+  spo2            Float    @default(98.0)
+  activityMins    Int      @default(30)
+  sleepHours      Float    @default(7.5)
+  ecgStatus       String   @default("NORMAL")
+  riskScore       Float    @default(15.0)
+  riskLevel       String   @default("LOW")
+  majorFactors    Json?
+  dataQuality     String   @default("HIGH") // HIGH, MEDIUM, LOW
+  confidenceScore Float    @default(0.95)
+  isSimulated     Boolean  @default(false)
+  lastUpdated     DateTime @updatedAt
+}
+
+// ─── FR4: Dynamic Risk & Vitals Alerting ───
+model Alert {
+  id                  String    @id @default(uuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level               String    // LOW, MODERATE, HIGH, CRITICAL
+  title               String
+  message             String
+  contributingFactors Json?
+  status              String    @default("TRIGGERED") // TRIGGERED, ACKNOWLEDGED
+  acknowledgedAt      DateTime?
+  createdAt           DateTime  @default(now())
+}
+
+// ─── FR9: Model Version Management ───
+model ModelVersion {
+  id           String   @id @default(uuid())
+  name         String
+  version      String   @unique
+  trainingDate DateTime
+  modelType    String   // XGBoost, LightGBM, CatBoost, Multi-Model Ensemble
+  features     Json
+  accuracy     Float?
+  rocAuc       Float?
+  f1Score      Float?
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, DEPRECATED
+  createdAt    DateTime @default(now())
+}
+
+// ─── FR11: Wearable & Physiological Device Management ───
+model Device {
+  id               String       @id @default(uuid())
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceType       String       // SMARTWATCH, ECG_MONITOR, BP_MONITOR, PULSE_OXIMETER
+  deviceIdentifier String       @unique
+  name             String
+  status           String       @default("ACTIVE") // ACTIVE, INACTIVE, PAIRED
+  lastSeen         DateTime     @default(now())
+  isSimulated      Boolean      @default(false)
+  sensorPayloads   SensorData[]
+  createdAt        DateTime     @default(now())
+}
+
+// ─── Semantic RAG Knowledge Base ───
+model MedicalKnowledge {
+  id        String                      @id @default(uuid())
+  category  String                      // BP, LIPID, GLUCOSE, DIET, EXERCISE, ECG, MEDICATION, GENERAL
+  title     String
+  content   String                      @db.Text
+  embedding Unsupported("vector(768)")?
+  createdAt DateTime                    @default(now())
+
+  @@map("medical_knowledge")
+}
+
+// ─── AI Observability Telemetry ───
+model AITelemetryLog {
+  id             String   @id @default(uuid())
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  agentType      String   // ORCHESTRATOR, DIAGNOSIS, DIET, EXERCISE, EMERGENCY, REPORT, NEARBY
+  model          String   // gemini-1.5-flash, text-embedding-004, etc.
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  totalTokens    Int      @default(0)
+  latencyMs      Int      @default(0)
+  ragChunksUsed  Int      @default(0)
+  status         String   @default("SUCCESS") // SUCCESS, FAILED, HALLUCINATION_FLAGGED
+  errorMessage   String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  @@map("ai_telemetry_logs")
+}

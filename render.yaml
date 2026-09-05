@@ -1,0 +1,45 @@
+services:
+  # 1. FastAPI ML Microservice (5 Production Models)
+  - type: web
+    name: hridayadarpana-ai
+    runtime: python
+    rootDir: ai
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    region: oregon
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: MODELS_DIR
+        value: models
+
+  # 2. Express Production Gateway (Prisma, Neon, Gemini, WebSockets)
+  - type: web
+    name: hridayadarpana-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: node dist/server.js
+    plan: starter
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Set in Render Dashboard from your Neon connection string
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REFRESH_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false # Set in Render Dashboard
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false # Set in Render Dashboard
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: hridayadarpana-ai
+          property: host

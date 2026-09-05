@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: hridyadarpan-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_secure_pass_2026
+      POSTGRES_DB: hridyadarpan
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  ai-service:
+    build: ./ai
+    container_name: hridyadarpan-ai
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    depends_on:
+      - db
+
+  backend:
+    build: ./server
+    container_name: hridyadarpan-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres_secure_pass_2026@db:5432/hridyadarpan?schema=public
+      - JWT_SECRET=hridyadarpan_super_secret_jwt_key_2026
+      - REFRESH_SECRET=hridyadarpan_super_secret_refresh_key_2026
+      - AI_SERVICE_URL=http://ai-service:8000
+    depends_on:
+      - db
+      - ai-service
+
+volumes:
+  postgres_data:

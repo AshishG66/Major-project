@@ -1,0 +1,32 @@
+{
+  "framingham": {
+    "model": "LightGBM",
+    "version": "v2.1_baseline_retained",
+    "status": "production",
+    "file": "framingham_risk_model.joblib"
+  },
+  "cardio_disease": {
+    "model": "CatBoost",
+    "version": "v2.1_optuna_tuned",
+    "status": "production",
+    "file": "cardio_lifestyle_model.joblib"
+  },
+  "heart_failure": {
+    "model": "XGBoost",
+    "version": "v2.1_baseline_retained",
+    "status": "production",
+    "file": "heart_failure_model.joblib"
+  },
+  "stroke_risk": {
+    "model": "Gradient Boosting",
+    "version": "v2.1_optuna_tuned",
+    "status": "production",
+    "file": "stroke_model.joblib"
+  },
+  "ecg_analysis": {
+    "model": "Random Forest",
+    "version": "v2.1_baseline_retained",
+    "status": "production",
+    "file": "ecg_arrhythmia_model.joblib"
+  }
+}
