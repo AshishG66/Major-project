@@ -167,6 +167,7 @@ export default function DashboardLayout() {
   const navItems: NavItem[] = [
     { name: t('dashboard'), path: '/dashboard', icon: Home },
     { name: t('runRiskScan'), path: '/prediction', icon: Activity },
+    { name: 'Heart Lab Simulator', path: '/simulator', icon: Heart },
     { name: t('hridayaAiChat'), path: '/chat', icon: MessageSquare },
     { name: t('preventionCoach'), path: '/prevention', icon: Shield },
     { name: t('nearbyServices'), path: '/nearby', icon: MapPin },
