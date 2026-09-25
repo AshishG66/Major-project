@@ -56,7 +56,12 @@ All dashboard components subscribe to a centralized **Zustand Prediction Store**
 - **Ensemble ML Prediction**: Calculates Framingham 10-year CVD risk percentage, arterial age, and risk categories (Low, Moderate, High, Critical).
 - **Fail-Safe Fallback**: Includes an embedded clinical fallback engine ensuring zero downtime even if the FastAPI microservice is offline.
 
-### 3. 📍 Nearby Cardiac Care (Google Maps Platform)
+### 4. 💊 Real-Time Heartbeat & Medication Simulation Laboratory
+- **1-Minute Interactive Simulation**: Real-time beating 3D/2D heart, continuous 60fps HTML5 Canvas sweeping ECG waveform, real-time vital readouts (HR, BP, MAP, Cardiac Output, SpO₂, SVR), and a 60-second timeline scrubber.
+- **Comprehensive Live Parameters**: Live modification of cardiovascular, electrolyte ($K^+$, $Ca^{2+}$, $Na^+$, pH), respiratory ($SpO_2$, RR), and medication variables (Beta-blockers, Vasopressors, Inotropes, Vasodilators, Diuretics).
+- **ML Ensemble & SHAP Explainability**: Real-time XGBoost/RandomForest hybrid risk score prediction, sub-model probabilities (Arrhythmia, Heart Failure, Ischemic stress), and live SHAP feature contribution weights.
+
+### 5. 📍 Nearby Cardiac Care (Google Maps Platform)
 - **Places API Integration**: Searches real, live cardiac hospitals, cardiologists, emergency ICUs, diagnostic labs, and pharmacies.
 - **Bi-Directional Canvas Sync**: Custom SVG map markers synced with detailed facility cards.
 - **Emergency SOS Banner**: Direct emergency routing to nearest 24/7 cardiac ICU.
