@@ -17,6 +17,7 @@ const ChatPage = lazy(() => import('../pages/ChatPage'));
 const PreventionPage = lazy(() => import('../pages/PreventionPage'));
 const NearbyPage = lazy(() => import('../pages/NearbyPage'));
 const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage'));
+const MedicationSimulatorPage = lazy(() => import('../pages/MedicationSimulatorPage'));
 const DoctorPortalPage = lazy(() => import('../pages/DoctorPortalPage'));
 const AdminPortalPage = lazy(() => import('../pages/AdminPortalPage'));
 
@@ -81,6 +82,7 @@ export default function App() {
               <Route path="prevention" element={<PreventionPage />} />
               <Route path="nearby" element={<NearbyPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="simulator" element={<MedicationSimulatorPage />} />
               
               {/* Portals */}
               <Route 
