@@ -8,6 +8,10 @@ import { eventBus, EVENTS } from '../utils/eventBus.js';
 import { createAuditLogEntry } from '../services/hashChainService.js';
 import { updateDigitalTwinState } from '../services/digitalTwinService.js';
 import { checkAndTriggerAlerts } from '../services/alertService.js';
+import { generatePersonalizedPreventionPlan, generateFallbackPreventionPlan } from '../services/preventionService.js';
+import { extractClinicalReport } from '../services/clinicalReportExtractionService.js';
+import { calculateValidationMetrics, registerValidationCase, buildValidationReportPdf } from '../services/clinicalValidationService.js';
+import { analyzeClinicalReportFile, executeClinicalReportPrediction } from '../services/clinicalReport/index.js';
 
 export const getAiServiceUrl = () => {
   const envUrl = process.env.AI_SERVICE_URL || process.env.FASTAPI_URL;
@@ -26,7 +30,7 @@ export const getAiServiceUrl = () => {
   return url.endsWith('/') ? url.slice(0, -1) : url;
 };
 
-const predictionInputSchema = z.object({
+export const predictionInputSchema = z.object({
   age: z.number().int().nonnegative(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
   height: z.number().positive(),
@@ -47,7 +51,7 @@ const predictionInputSchema = z.object({
   stressLevel: z.number().int().min(1).max(10),
 });
 
-function calculateClinicalFallbackRisk(factors: any, bmi: number) {
+export function calculateClinicalFallbackRisk(factors: any, bmi: number) {
   let score = 10;
 
   if (factors.age > 65) score += 25;
@@ -98,24 +102,19 @@ function calculateClinicalFallbackRisk(factors: any, bmi: number) {
   else if (riskScore >= 25) riskLevel = 'MODERATE';
   else riskLevel = 'LOW';
 
-  const shapExplanation = [
-    { feature: 'Systolic Blood Pressure', value: `${factors.systolicBP} mmHg`, importance: factors.systolicBP > 130 ? 0.28 : 0.08, impact: factors.systolicBP > 130 ? 'INCREASES_RISK' : 'NEUTRAL' },
-    { feature: 'Serum Cholesterol', value: `${factors.cholesterol} mg/dL`, importance: factors.cholesterol > 200 ? 0.22 : 0.06, impact: factors.cholesterol > 200 ? 'INCREASES_RISK' : 'NEUTRAL' },
-    { feature: 'Age & Demographics', value: `${factors.age} yrs`, importance: 0.18, impact: factors.age > 50 ? 'INCREASES_RISK' : 'NEUTRAL' },
-    { feature: 'Active Smoking', value: factors.smoking ? 'Yes' : 'No', importance: factors.smoking ? 0.25 : 0.0, impact: factors.smoking ? 'INCREASES_RISK' : 'PROTECTIVE' },
-    { feature: 'Exercise Frequency', value: `${factors.exerciseFrequency} days/wk`, importance: 0.15, impact: factors.exerciseFrequency >= 3 ? 'PROTECTIVE' : 'INCREASES_RISK' }
-  ];
-
-  const plainExplanation = `Cardiovascular risk score calculated at ${riskScore}% (${riskLevel} Risk category). Primary contributing metrics include blood pressure (${factors.systolicBP}/${factors.diastolicBP} mmHg), cholesterol (${factors.cholesterol} mg/dL), and clinical lifestyle parameters.`;
+  const plainExplanation = `[HEURISTIC CLINICAL FALLBACK] Cardiovascular risk score calculated at ${riskScore}% (${riskLevel} Risk category) using rule-based triage. Primary contributing metrics include blood pressure (${factors.systolicBP}/${factors.diastolicBP} mmHg), cholesterol (${factors.cholesterol} mg/dL), and clinical lifestyle parameters. AI microservice is offline.`;
 
   return {
     riskScore,
     riskLevel,
-    modelName: 'HridyaDarpan Clinical Rules & Framingham Risk Model Engine',
-    modelVersion: 'v2.1-ClinicalFallback',
-    confidenceScore: 0.92,
-    featureImportance: shapExplanation,
+    isMlPrediction: false,
+    modelName: 'Clinical Decision Rules Heuristic (AI Microservice Offline)',
+    modelVersion: 'v2.1-ClinicalHeuristicFallback',
+    confidenceScore: 0.0,
+    featureImportance: [],
+    explanationStatus: 'EXPLANATION_UNAVAILABLE',
     clinicalSummary: plainExplanation,
+    fallbackNotice: 'AI prediction service offline. Score generated via rule-based clinical heuristic triage, NOT statistical machine learning model.'
   };
 }
 
@@ -126,14 +125,11 @@ export const createPrediction = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Unauthenticated' });
     }
 
-    let validUserId = userId;
     const userExists = await prisma.user.findUnique({ where: { id: userId } });
     if (!userExists) {
-      const defaultUser = await prisma.user.findFirst();
-      if (defaultUser) {
-        validUserId = defaultUser.id;
-      }
+      return res.status(401).json({ success: false, message: 'User account not found' });
     }
+    const validUserId = userId;
 
     const parsed = predictionInputSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -243,19 +239,18 @@ export const createPrediction = async (req: Request, res: Response) => {
 
     const shapExplanationData = predictionRes.featureImportance || predictionRes.contributions || [];
     const plainExplanationText = predictionRes.clinicalSummary || predictionRes.plainExplanation || `Risk evaluated as ${predictionRes.riskLevel} (${predictionRes.riskScore}%).`;
-    const confidenceVal = predictionRes.predictionConfidence || predictionRes.confidenceScore || 0.95;
+    const confidenceVal = predictionRes.isMlPrediction === false ? 0.0 : (predictionRes.predictionConfidence ?? 0.0);
 
-    // Calculate Multi-Horizon Risk Probabilities
-    const baseRisk = predictionRes.riskScore;
-    const risk30Day = parseFloat(Math.max(2, Math.min(90, baseRisk * 0.28)).toFixed(1));
-    const risk1Year = parseFloat(Math.max(4, Math.min(92, baseRisk * 0.65)).toFixed(1));
-    const risk5Year = parseFloat(Math.max(6, Math.min(96, baseRisk * 0.95)).toFixed(1));
-    const modelVersionStr = predictionRes.modelVersion || 'v2.1-ClinicalEnsemble';
+    // Multi-Horizon Risk Probabilities: Disable unsupported fixed multiplier estimates
+    const risk30Day: number | null = null;
+    const risk1Year: number | null = null;
+    const risk5Year: number | null = null;
+    const modelVersionStr = predictionRes.modelVersion || (predictionRes.isMlPrediction === false ? 'v2.1-HeuristicFallback' : 'v2.1-HonestOrchestrator');
 
     const horizonConfidence = {
-      day30: { probability: risk30Day, confidence: 0.94, horizon: '30 Days' },
-      year1: { probability: risk1Year, confidence: 0.92, horizon: '1 Year' },
-      year5: { probability: risk5Year, confidence: 0.88, horizon: '5 Years' },
+      day30: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
+      year1: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
+      year5: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
     };
 
     // Save predictions, factors, and lifestyle goals sequentially
@@ -265,7 +260,7 @@ export const createPrediction = async (req: Request, res: Response) => {
         riskScore: predictionRes.riskScore,
         riskLevel: predictionRes.riskLevel,
         confidenceScore: confidenceVal,
-        modelName: predictionRes.modelName || 'XGBoost & LightGBM Multi-Model Ensemble',
+        modelName: predictionRes.modelName || (predictionRes.isMlPrediction === false ? 'Clinical Decision Rules Heuristic (Offline)' : 'Verified ML Ensemble'),
         shapExplanation: shapExplanationData as any,
         plainExplanation: plainExplanationText,
         risk30Day,
@@ -384,6 +379,12 @@ export const createPrediction = async (req: Request, res: Response) => {
       healthScore: healthScoreVal,
     });
 
+    const personalizedPreventionPlan = generatePersonalizedPreventionPlan(
+      validUserId,
+      savedData.prediction,
+      factors
+    );
+
     res.status(200).json({
       success: true,
       prediction: {
@@ -422,6 +423,7 @@ export const createPrediction = async (req: Request, res: Response) => {
       },
       healthScore: healthScoreVal,
       recommendations: recs,
+      preventionPlan: personalizedPreventionPlan,
     });
   } catch (error: any) {
     logger.error(`Error creating prediction: ${error.message}`);
@@ -478,12 +480,43 @@ export const getLatestPrediction = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
     });
 
+    const preventionPlan = latest && latest.factors
+      ? generatePersonalizedPreventionPlan(userId, latest, latest.factors)
+      : generateFallbackPreventionPlan(userId);
+
     res.status(200).json({
       success: true,
       prediction: latest,
       dietPlan: activeDiet,
       exercisePlan: activeExercise,
       healthScore: latestHealthScore?.score || null,
+      preventionPlan,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getPreventionPlan = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as AuthRequest).user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
+
+    const latest = await prisma.prediction.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: { factors: true },
+    });
+
+    const preventionPlan = latest && latest.factors
+      ? generatePersonalizedPreventionPlan(userId, latest, latest.factors)
+      : generateFallbackPreventionPlan(userId);
+
+    res.status(200).json({
+      success: true,
+      preventionPlan,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -499,13 +532,19 @@ export const downloadReport = async (req: Request, res: Response) => {
 
     const { id } = req.params;
 
-    const prediction = (await prisma.prediction.findFirst({
-      where: { id: id as string, userId: userId as string },
-      include: { factors: true },
-    })) as any;
+    const prediction = (id === 'latest' || !id)
+      ? await prisma.prediction.findFirst({
+          where: { userId: userId as string },
+          orderBy: { createdAt: 'desc' },
+          include: { factors: true },
+        })
+      : await prisma.prediction.findFirst({
+          where: { id: id as string, userId: userId as string },
+          include: { factors: true },
+        });
 
     if (!prediction || !prediction.factors) {
-      return res.status(404).json({ success: false, message: 'Report prediction not found' });
+      return res.status(404).json({ success: false, message: 'Report prediction not found for this patient' });
     }
 
     const user = await prisma.user.findUnique({
@@ -517,23 +556,25 @@ export const downloadReport = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: 'User profile not found' });
     }
 
-    const activeDiet = await prisma.dietPlan.findFirst({
-      where: { userId: userId as string, isActive: true },
-    });
+    // Generate patient-specific personalized prevention plan for this report
+    const preventionPlan = generatePersonalizedPreventionPlan(
+      userId,
+      prediction,
+      prediction.factors
+    );
 
-    const activeExercise = await prisma.exercisePlan.findFirst({
-      where: { userId: userId as string, isActive: true },
-    });
-
-    const dietData = activeDiet ? (activeDiet.planData as string[]) : ['Follow balanced nutrition rules.'];
-    const exerciseData = activeExercise ? (activeExercise.planData as string[]) : ['Aim for 30 minutes of aerobic exercise.'];
+    const dateStr = prediction.createdAt
+      ? new Date(prediction.createdAt).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
+    const filename = `HridayaDarpana_Cardiovascular_Report_${dateStr}.pdf`;
 
     // Set headers for download
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=HridyaDarpan_Report_${prediction.id.slice(0, 8)}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     buildReportPdf(res, {
       user: {
+        id: user.id,
         email: user.email,
         profile: user.profile,
       },
@@ -544,14 +585,220 @@ export const downloadReport = async (req: Request, res: Response) => {
         confidenceScore: prediction.confidenceScore,
         plainExplanation: prediction.plainExplanation,
         shapExplanation: prediction.shapExplanation,
+        modelVersion: prediction.modelVersion || 'v2.1-ClinicalEnsemble',
+        risk30Day: prediction.risk30Day,
+        risk1Year: prediction.risk1Year,
+        risk5Year: prediction.risk5Year,
+        modelName: prediction.modelName,
         createdAt: prediction.createdAt,
       },
-      factors: prediction.factors,
-      diet: dietData,
-      exercise: exerciseData,
+      factors: prediction.factors as any,
+      preventionPlan,
     });
   } catch (error: any) {
     logger.error(`Error downloading report PDF: ${error.message}`);
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const extractClinicalReportController = async (req: Request, res: Response) => {
+  try {
+    const { fileBase64, mimeType, fileName, fileText } = req.body;
+    let buffer: Buffer | null = null;
+    if (fileBase64) {
+      buffer = Buffer.from(fileBase64, 'base64');
+    }
+    const result = await extractClinicalReport(buffer, mimeType || 'application/pdf', fileName || 'report.pdf', fileText);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (err: any) {
+    logger.error(`Error in extractClinicalReportController: ${err.message}`);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Controller for Section 4-8: Clinical Report Analysis
+ * Performs structured document extraction, canonical mapping,
+ * segregated biomarker categorization, and model readiness validation.
+ */
+export const analyzeClinicalReportController = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as AuthRequest).user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
+
+    const { fileBase64, mimeType, fileName, fileText } = req.body;
+    let buffer: Buffer | null = null;
+    if (fileBase64) {
+      buffer = Buffer.from(fileBase64, 'base64');
+    }
+
+    const analysis = await analyzeClinicalReportFile(
+      buffer,
+      mimeType || 'application/pdf',
+      fileName || 'clinical_report.pdf',
+      fileText
+    );
+
+    res.status(200).json({
+      success: true,
+      data: analysis,
+    });
+  } catch (err: any) {
+    logger.error(`Error in analyzeClinicalReportController: ${err.message}`);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * Controller for Section 9-13: Review & Prediction Execution
+ * Executes verified patient clinical values through the existing 5 ML models,
+ * computes SHAP explanations, updates Digital Twin, and generates Prevention Plan.
+ */
+export const runClinicalReportAnalysisController = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as AuthRequest).user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
+
+    const { caseId, reportFileName, reportDate, clinicalValues, sourceAttribution, unusedClinicalValues } = req.body;
+
+    if (!clinicalValues) {
+      return res.status(400).json({ success: false, message: 'Missing clinical values payload' });
+    }
+
+    const predictionResult = await executeClinicalReportPrediction(userId, {
+      caseId: caseId || 'CASE-' + Math.floor(100000 + Math.random() * 900000),
+      reportFileName: reportFileName || 'report.pdf',
+      reportDate,
+      clinicalValues,
+      sourceAttribution,
+      unusedClinicalValues,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: predictionResult,
+    });
+  } catch (err: any) {
+    logger.error(`Error in runClinicalReportAnalysisController: ${err.message}`);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const validateHistoricalCaseController = async (req: Request, res: Response) => {
+  try {
+    const { patientData, actualOutcome, reportFileName } = req.body;
+    if (!patientData || !actualOutcome) {
+      return res.status(400).json({ success: false, message: 'Missing patientData or actualOutcome' });
+    }
+
+    // Run prediction through existing ML pipeline
+    const bmi = parseFloat((patientData.weight / ((patientData.height / 100) ** 2)).toFixed(1));
+    const genderInt = patientData.gender === 'MALE' ? 0 : 1;
+    const ecgInt = patientData.ecgResult === 'NORMAL' ? 0 : patientData.ecgResult === 'ST_T_ABNORMAL' ? 1 : 2;
+    const chestPainInt = patientData.chestPainType === 'TYPICAL' ? 0 : patientData.chestPainType === 'ATYPICAL' ? 1 : patientData.chestPainType === 'NON_ANGINAL' ? 2 : 3;
+
+    const fastApiPayload = {
+      age: patientData.age,
+      gender: genderInt,
+      height: patientData.height,
+      weight: patientData.weight,
+      bmi,
+      systolicBP: patientData.systolicBP,
+      diastolicBP: patientData.diastolicBP,
+      cholesterol: patientData.cholesterol,
+      heartRate: patientData.heartRate,
+      bloodSugar: patientData.bloodSugar,
+      ecgResult: ecgInt,
+      exerciseFrequency: patientData.exerciseFrequency,
+      smoking: patientData.smoking ? 1 : 0,
+      alcohol: patientData.alcohol ? 1 : 0,
+      diabetes: patientData.diabetes ? 1 : 0,
+      familyHistory: patientData.familyHistory ? 1 : 0,
+      chestPainType: chestPainInt,
+      sleepDuration: patientData.sleepDuration,
+      stressLevel: patientData.stressLevel,
+    };
+
+    const aiServiceUrl = getAiServiceUrl();
+    let predictionRes: any;
+    try {
+      const response = await fetch(`${aiServiceUrl}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fastApiPayload),
+      });
+      if (response.ok) {
+        predictionRes = await response.json();
+      } else {
+        predictionRes = calculateClinicalFallbackRisk(patientData, bmi);
+      }
+    } catch {
+      predictionRes = calculateClinicalFallbackRisk(patientData, bmi);
+    }
+
+    const registeredCase = registerValidationCase({
+      reportFileName,
+      demographics: {
+        age: patientData.age,
+        gender: patientData.gender === 'MALE' ? 'MALE' : 'FEMALE',
+        systolicBP: patientData.systolicBP,
+        diastolicBP: patientData.diastolicBP,
+        cholesterol: patientData.cholesterol,
+        bmi,
+        smoking: Boolean(patientData.smoking),
+        diabetes: Boolean(patientData.diabetes),
+      },
+      predictedRiskScore: predictionRes.riskScore,
+      predictedRiskLevel: predictionRes.riskLevel,
+      topContributingFactor: predictionRes.featureImportance?.[0]?.feature,
+      actualEventType: actualOutcome.eventType,
+      actualOutcomeDate: actualOutcome.outcomeDate,
+      actualOutcomeSource: actualOutcome.outcomeSource,
+    });
+
+    const updatedMetrics = calculateValidationMetrics();
+
+    res.status(200).json({
+      success: true,
+      case: registeredCase,
+      metrics: updatedMetrics,
+      prediction: predictionRes,
+    });
+  } catch (err: any) {
+    logger.error(`Error in validateHistoricalCaseController: ${err.message}`);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getValidationMetricsController = async (req: Request, res: Response) => {
+  try {
+    const metrics = calculateValidationMetrics();
+    res.status(200).json({
+      success: true,
+      metrics,
+    });
+  } catch (err: any) {
+    logger.error(`Error in getValidationMetricsController: ${err.message}`);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const downloadValidationReportPdfController = async (req: Request, res: Response) => {
+  try {
+    const filename = `HridayaDarpana_Clinical_Validation_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    buildValidationReportPdf(res);
+  } catch (err: any) {
+    logger.error(`Error in downloadValidationReportPdfController: ${err.message}`);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+

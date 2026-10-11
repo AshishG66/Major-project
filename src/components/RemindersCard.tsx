@@ -10,7 +10,7 @@ interface RemindersCardProps {
 
 const RemindersCard = ({ remindersLoading, reminders, onAddClick, onDeleteClick }: RemindersCardProps) => {
   return (
-    <div className="lg:col-span-4 glass-panel p-6 rounded-2xl flex flex-col relative h-[280px] bg-white/80 border border-slate-200/80 shadow-sm">
+    <div className="glass-panel p-5 rounded-2xl flex flex-col relative h-auto min-h-[200px] max-h-[300px] bg-white/80 border border-slate-200/80 shadow-sm">
       <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
         <h4 className="font-display font-bold text-xs uppercase tracking-wider text-slate-500">Smart Cardiac Reminders</h4>
         <button onClick={onAddClick} className="text-xxs font-semibold text-blue-600 hover:underline flex items-center space-x-1 focus:outline-none">

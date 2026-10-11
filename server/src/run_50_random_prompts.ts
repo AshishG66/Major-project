@@ -1,5 +1,9 @@
 import 'dotenv/config';
 import http from 'http';
+import jwt from 'jsonwebtoken';
+
+const TEST_SECRET = process.env.JWT_SECRET || 'hridaya-development-secret-key-change-in-production';
+const BENCHMARK_JWT = jwt.sign({ id: 'dev-benchmark-user', role: 'USER' }, TEST_SECRET, { expiresIn: '1h' });
 
 const PROMPTS = [
   // History
@@ -93,7 +97,7 @@ async function sendChatRequest(message: string, sessionId: string): Promise<any>
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer demo-token-123',
+          'Authorization': `Bearer ${BENCHMARK_JWT}`,
           'Content-Length': Buffer.byteLength(postData)
         }
       },

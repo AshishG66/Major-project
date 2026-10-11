@@ -114,19 +114,25 @@ def main():
         df_raw = config["loader_func"]()
         print(f"Raw Dataset Shape: {df_raw.shape}")
 
-        # 2. Preprocess Data
-        preprocessor = ClinicalDataPreprocessor(target_column=config["target"])
-        X_proc, y_proc = preprocessor.fit_transform(df_raw)
-        feature_names = preprocessor.feature_names
-
-        # 3. Stratified Split BEFORE Resampling
-        X_train, X_val, X_test, y_train, y_val, y_test = preprocessor.split_data(
-            X_proc, y_proc, train_size=0.8, val_size=0.1, test_size=0.1, random_state=42
+        # 2. Stratified Raw Split BEFORE Fitting Any Transformations (Zero Leakage)
+        df_train, df_val, df_test = ClinicalDataPreprocessor.split_raw_dataset(
+            df_raw, target_column=config["target"], train_size=0.8, val_size=0.1, test_size=0.1, random_state=42
         )
 
-        # 4. Audit Data Leakage
+        # 3. Fit Preprocessor STRICTLY on Training Split Only
+        preprocessor = ClinicalDataPreprocessor(target_column=config["target"])
+        X_train, y_train = preprocessor.fit_transform(df_train)
+        feature_names = preprocessor.feature_names
+
+        # 4. Transform Validation and Test Sets Using Training-Derived Moments
+        X_val = preprocessor.transform(df_val)
+        y_val = df_val[config["target"]].values
+        X_test = preprocessor.transform(df_test)
+        y_test = df_test[config["target"]].values
+
+        # 5. Audit Data Leakage
         leak_audit = leakage_auditor.audit_dataset_split(
-            df_raw, X_train, X_val, X_test, config["target"], config["name"]
+            df_raw, X_train, X_val, X_test, config["target"], config["name"], preprocessor=preprocessor
         )
         leakage_audits.append(leak_audit)
 

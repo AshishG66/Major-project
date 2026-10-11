@@ -9,6 +9,7 @@ export interface TranslationDictionary {
   preventionCoach: string;
   nearbyServices: string;
   healthAnalytics: string;
+  reportCenter: string;
   doctorPortal: string;
   adminConsole: string;
   logout: string;
@@ -92,6 +93,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     preventionCoach: 'Prevention Coach',
     nearbyServices: 'Nearby Services',
     healthAnalytics: 'Health Analytics',
+    reportCenter: 'Report Center',
     doctorPortal: 'Doctor Portal',
     adminConsole: 'Admin Console',
     logout: 'Logout',
@@ -167,6 +169,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     preventionCoach: 'निवारण कोच',
     nearbyServices: 'निकटतम स्वास्थ्य सेवाएं',
     healthAnalytics: 'स्वास्थ्य विश्लेषण',
+    reportCenter: 'रिपोर्ट केंद्र',
     doctorPortal: 'डॉक्टर पोर्टल',
     adminConsole: 'एडमिन कंसोल',
     logout: 'लॉग आउट',
@@ -242,6 +245,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     preventionCoach: 'ತಡೆಗಟ್ಟುವಿಕೆ ಕೋಚ್',
     nearbyServices: 'ಸಮೀಪದ ಆರೋಗ್ಯ ಸೇವೆಗಳು',
     healthAnalytics: 'ಆರೋಗ್ಯ ವಿಶ್ಲೇಷಣೆ',
+    reportCenter: 'ವರದಿ ಕೇಂದ್ರ',
     doctorPortal: 'ವೈದ್ಯರ ಪೋರ್ಟಲ್',
     adminConsole: 'ಅಡ್ಮಿನ್ ಕನ್ಸೋಲ್',
     logout: 'ಲಾಗ್ ಔಟ್',

@@ -1,98 +1,119 @@
-import React, { useState } from 'react';
-import { Search, MapPin, Navigation, Crosshair } from 'lucide-react';
+import React from 'react';
+import { Search, MapPin, Crosshair, Loader2, AlertCircle } from 'lucide-react';
 
 interface SearchBarProps {
-  onSearch: (city: string, pincode: string) => void;
+  value: string;
+  onChange: (value: string) => void;
+  onSearch: (location: string) => void;
   onRequestGeolocation: () => void;
   isLoading: boolean;
+  errorMessage?: string;
+  onClearError?: () => void;
 }
 
-const CITY_PRESETS = [
-  { name: 'New Delhi', code: '110001' },
-  { name: 'Mumbai', code: '400001' },
-  { name: 'Bengaluru', code: '560001' },
-  { name: 'Chennai', code: '600001' },
-  { name: 'Hyderabad', code: '500001' },
-  { name: 'Kolkata', code: '700001' },
+const QUICK_ZONES = [
+  { name: 'New Delhi' },
+  { name: 'Mumbai' },
+  { name: 'Bengaluru' },
 ];
 
-export default function SearchBar({ onSearch, onRequestGeolocation, isLoading }: SearchBarProps) {
-  const [city, setCity] = useState('');
-  const [pincode, setPincode] = useState('');
-
+export default function SearchBar({
+  value,
+  onChange,
+  onSearch,
+  onRequestGeolocation,
+  isLoading,
+  errorMessage,
+  onClearError,
+}: SearchBarProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (city.trim() || pincode.trim()) {
-      onSearch(city.trim(), pincode.trim());
-    }
+    onSearch(value);
   };
 
-  const handlePresetClick = (presetCity: string, presetPincode: string) => {
-    setCity(presetCity);
-    setPincode(presetPincode);
-    onSearch(presetCity, presetPincode);
+  const handleQuickZoneClick = (zoneName: string) => {
+    if (onClearError) onClearError();
+    onChange(zoneName);
+    onSearch(zoneName);
   };
 
   return (
-    <div className="space-y-2.5 w-full max-w-3xl">
-      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5 w-full">
-        <div className="relative flex-1">
-          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
-            <MapPin className="h-4 w-4" />
+    <div className="w-full space-y-2">
+      {/* Search Input Row */}
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
+        <div className="relative flex-1 min-w-0">
+          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <MapPin className="h-4 w-4 text-[#0052ff]" />
           </span>
           <input
             type="text"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="Search City, Suburb, or Hospital Area (e.g. New Delhi, Sector 18)..."
-            className="w-full pl-10 pr-4 py-2.5 text-xs glass-input placeholder-slate-400 text-slate-900 focus:border-blue-500 transition-all"
-          />
-        </div>
-        
-        <div className="relative w-full sm:w-36">
-          <input
-            type="text"
-            value={pincode}
-            onChange={(e) => setPincode(e.target.value)}
-            placeholder="Pincode..."
-            className="w-full px-4 py-2.5 text-xs glass-input placeholder-slate-400 text-slate-900 focus:border-blue-500 transition-all"
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              if (errorMessage && onClearError) onClearError();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onSearch(value);
+              }
+            }}
+            placeholder="Enter city, area or address"
+            className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-300 rounded-xl placeholder-slate-400 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0052ff]/20 focus:border-[#0052ff] transition-all shadow-xs"
           />
         </div>
 
-        <div className="flex space-x-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="submit"
-            disabled={isLoading || (!city && !pincode)}
-            className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-xs font-semibold rounded-xl text-white hover:from-blue-700 hover:to-blue-600 shadow-xs flex items-center justify-center space-x-1.5 transition-all disabled:opacity-50"
+            disabled={isLoading}
+            className="flex-1 sm:flex-initial px-4 py-2.5 bg-[#0052ff] hover:bg-[#0045d8] text-white text-xs sm:text-sm font-semibold rounded-xl flex items-center justify-center space-x-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer active:scale-95"
           >
-            <Search className="h-4 w-4" />
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
             <span>Search</span>
           </button>
 
           <button
             type="button"
-            onClick={onRequestGeolocation}
+            onClick={() => {
+              if (errorMessage && onClearError) onClearError();
+              onRequestGeolocation();
+            }}
             disabled={isLoading}
-            className="px-3.5 py-2.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-xl flex items-center justify-center space-x-1.5 transition-all shadow-xs disabled:opacity-50"
-            title="Detect My Location"
+            className="flex-1 sm:flex-initial px-3.5 py-2.5 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs sm:text-sm font-semibold rounded-xl flex items-center justify-center space-x-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer active:scale-95"
+            title="Locate Me (Device Geolocation)"
           >
             <Crosshair className="h-4 w-4 text-emerald-600" />
-            <span className="hidden md:inline">Locate Me</span>
+            <span>Locate Me</span>
           </button>
         </div>
       </form>
 
+      {/* Validation / Error Feedback */}
+      {errorMessage && (
+        <div className="flex items-center space-x-1.5 text-xs text-rose-600 font-medium pt-0.5 animate-fadeIn">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       {/* Quick City Presets */}
-      <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none text-[9.5px]">
-        <span className="text-slate-500 uppercase font-bold shrink-0 text-[8.5px]">Quick Zones:</span>
-        {CITY_PRESETS.map((preset) => (
+      <div className="flex items-center space-x-2 pt-0.5 overflow-x-auto pb-0.5 scrollbar-none text-xs">
+        <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider shrink-0">
+          Quick Zones:
+        </span>
+        {QUICK_ZONES.map((zone) => (
           <button
-            key={preset.name}
+            key={zone.name}
             type="button"
-            onClick={() => handlePresetClick(preset.name, preset.code)}
-            className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-all shrink-0 font-medium shadow-xs"
+            onClick={() => handleQuickZoneClick(zone.name)}
+            className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-xs transition-all shrink-0 font-medium shadow-2xs active:scale-95 cursor-pointer"
           >
-            📍 {preset.name}
+            📍 {zone.name}
           </button>
         ))}
       </div>

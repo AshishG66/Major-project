@@ -1,0 +1,477 @@
+{
+  "pipeline_version": "v2.2_rigorous_evaluation_verified",
+  "evaluation_timestamp": "2026-10-11T11:06:11.660197",
+  "clinical_status": "SYNTHETIC_DEMO_EVALUATION \u2014 NOT CLINICALLY VALIDATED",
+  "statistical_methodology": {
+    "bootstrap_method": "Non-parametric empirical percentile bootstrap (B=1000, seed=42)",
+    "auroc_input": "Continuous predicted probability of positive class (NOT binary thresholded predictions)",
+    "classification_input": "Binary/Multiclass thresholded predictions",
+    "minimum_valid_replicates_threshold": 500,
+    "partitioning": "Strict raw dataset partition (80% train, 10% val, 10% holdout test) prior to transformation fitting"
+  },
+  "models": {
+    "framingham": {
+      "model_name": "LightGBM (Baseline)",
+      "algorithm": "LGBMClassifier",
+      "version": "v2.0",
+      "dataset_provenance": {
+        "name": "Framingham Heart Study (Synthetic Benchmark Simulation)",
+        "provenance_type": "SYNTHETIC_DEMO",
+        "is_synthetic_demonstration": true,
+        "clinical_validation_available": false,
+        "original_research_reference": "National Heart, Lung, and Blood Institute (NHLBI) & Boston University Framingham Heart Study (1948-present).",
+        "licensing_attribution": "Synthetic benchmark distribution. Public demonstration use under open academic license.",
+        "intended_target": "TenYearCHD (10-year risk of coronary heart disease event)",
+        "limitations": "Parametric normal/binomial synthetic data. Does not reflect true multi-ethnic clinical variability."
+      },
+      "split_details": {
+        "train": {
+          "total_samples": 2400,
+          "class_counts": {
+            "0": 2356,
+            "1": 44
+          }
+        },
+        "validation": {
+          "total_samples": 300,
+          "class_counts": {
+            "0": 294,
+            "1": 6
+          }
+        },
+        "holdout_test": {
+          "total_samples": 300,
+          "class_counts": {
+            "0": 295,
+            "1": 5
+          }
+        }
+      },
+      "metrics": {
+        "metric_status": "SYNTHETIC_DEMO_EVALUATION \u2014 NOT CLINICALLY VALIDATED",
+        "accuracy": 0.9967,
+        "accuracy_ci_95": [
+          0.9867,
+          1.0
+        ],
+        "accuracy_bootstrap_details": {
+          "valid_replicates": 992,
+          "failed_replicates": 8
+        },
+        "precision": 1.0,
+        "recall_sensitivity": 0.8,
+        "recall_ci_95": [
+          0.3333,
+          1.0
+        ],
+        "specificity": 1.0,
+        "specificity_ci_95": [
+          1.0,
+          1.0
+        ],
+        "f1_score": 0.8889,
+        "f1_ci_95": [
+          0.5,
+          1.0
+        ],
+        "auroc": 0.981,
+        "auroc_ci_95": [
+          0.9344,
+          1.0
+        ],
+        "auroc_bootstrap_details": {
+          "valid_replicates": 992,
+          "failed_replicates": 8
+        },
+        "auprc": 0.8303,
+        "brier_score": 0.0037,
+        "confusion_matrix": {
+          "tn": 295,
+          "fp": 0,
+          "fn": 1,
+          "tp": 4
+        },
+        "decision_threshold": 0.5,
+        "threshold_selection_source": "Training / cross-validation optimization in model bundle (Holdout test set unobserved)",
+        "audit_note": "Model executed with sensitivity 0.8000 and specificity 1.0000 under threshold 0.5.",
+        "class_distribution": {
+          "negative_count": 295,
+          "positive_count": 5,
+          "positive_prevalence_pct": 1.67
+        }
+      }
+    },
+    "cardio_disease": {
+      "model_name": "CatBoost (Optuna Tuned)",
+      "algorithm": "CatBoostClassifier",
+      "version": "v2.0",
+      "dataset_provenance": {
+        "name": "Cardiovascular Disease Dataset (Synthetic Benchmark Simulation)",
+        "provenance_type": "SYNTHETIC_DEMO",
+        "is_synthetic_demonstration": true,
+        "clinical_validation_available": false,
+        "original_research_reference": "Kaggle Cardiovascular Disease dataset (Sulkova et al., 70,000 patient records distribution).",
+        "licensing_attribution": "Synthetic benchmark distribution. Open database demonstration license.",
+        "intended_target": "cardio (Presence or absence of cardiovascular disease)",
+        "limitations": "Synthetic parametric generation. Clinical cutoffs for cholesterol/glucose are discrete approximations."
+      },
+      "split_details": {
+        "train": {
+          "total_samples": 3999,
+          "class_counts": {
+            "0": 3877,
+            "1": 122
+          }
+        },
+        "validation": {
+          "total_samples": 501,
+          "class_counts": {
+            "0": 486,
+            "1": 15
+          }
+        },
+        "holdout_test": {
+          "total_samples": 500,
+          "class_counts": {
+            "0": 485,
+            "1": 15
+          }
+        }
+      },
+      "metrics": {
+        "metric_status": "SYNTHETIC_DEMO_EVALUATION \u2014 NOT CLINICALLY VALIDATED",
+        "accuracy": 0.97,
+        "accuracy_ci_95": [
+          0.954,
+          0.984
+        ],
+        "accuracy_bootstrap_details": {
+          "valid_replicates": 1000,
+          "failed_replicates": 0
+        },
+        "precision": 0.0,
+        "recall_sensitivity": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "specificity": 1.0,
+        "specificity_ci_95": [
+          1.0,
+          1.0
+        ],
+        "f1_score": 0.0,
+        "f1_ci_95": [
+          0.0,
+          0.0
+        ],
+        "auroc": 0.8948,
+        "auroc_ci_95": [
+          0.8166,
+          0.9583
+        ],
+        "auroc_bootstrap_details": {
+          "valid_replicates": 1000,
+          "failed_replicates": 0
+        },
+        "auprc": 0.3386,
+        "brier_score": 0.0276,
+        "confusion_matrix": {
+          "tn": 485,
+          "fp": 0,
+          "fn": 15,
+          "tp": 0
+        },
+        "decision_threshold": 0.65,
+        "threshold_selection_source": "Training / cross-validation optimization in model bundle (Holdout test set unobserved)",
+        "audit_note": "THRESHOLD DEFECT: Decision threshold 0.65 resulted in 0 positive predictions. Sensitivity=0.0, Precision is undefined (reported as 0.0). Threshold requires re-tuning.",
+        "class_distribution": {
+          "negative_count": 485,
+          "positive_count": 15,
+          "positive_prevalence_pct": 3.0
+        }
+      }
+    },
+    "heart_failure": {
+      "model_name": "XGBoost (Baseline)",
+      "algorithm": "XGBClassifier",
+      "version": "v2.0",
+      "dataset_provenance": {
+        "name": "Heart Failure Clinical Records (Synthetic Benchmark Simulation)",
+        "provenance_type": "SYNTHETIC_DEMO",
+        "is_synthetic_demonstration": true,
+        "clinical_validation_available": false,
+        "original_research_reference": "Chicco & Jurman (2020), Machine learning can predict survival of patients with heart failure from serum creatinine and ejection fraction alone. BMC Medical Informatics and Decision Making 20, 16.",
+        "licensing_attribution": "Synthetic benchmark distribution based on Chicco & Jurman CC-BY-4.0 open research dataset.",
+        "intended_target": "DEATH_EVENT (In-hospital/follow-up survival status)",
+        "limitations": "Synthetic parametric simulation. 'time' variable is a survival follow-up duration artifact not available at point-of-care baseline."
+      },
+      "split_details": {
+        "train": {
+          "total_samples": 1999,
+          "class_counts": {
+            "0": 1564,
+            "1": 435
+          }
+        },
+        "validation": {
+          "total_samples": 251,
+          "class_counts": {
+            "0": 196,
+            "1": 55
+          }
+        },
+        "holdout_test": {
+          "total_samples": 250,
+          "class_counts": {
+            "0": 196,
+            "1": 54
+          }
+        }
+      },
+      "metrics": {
+        "metric_status": "SYNTHETIC_DEMO_EVALUATION \u2014 NOT CLINICALLY VALIDATED",
+        "accuracy": 0.88,
+        "accuracy_ci_95": [
+          0.84,
+          0.92
+        ],
+        "accuracy_bootstrap_details": {
+          "valid_replicates": 1000,
+          "failed_replicates": 0
+        },
+        "precision": 0.6463,
+        "recall_sensitivity": 0.9815,
+        "recall_ci_95": [
+          0.9375,
+          1.0
+        ],
+        "specificity": 0.852,
+        "specificity_ci_95": [
+          0.799,
+          0.8971
+        ],
+        "f1_score": 0.7794,
+        "f1_ci_95": [
+          0.7,
+          0.8511
+        ],
+        "auroc": 0.9843,
+        "auroc_ci_95": [
+          0.9614,
+          0.999
+        ],
+        "auroc_bootstrap_details": {
+          "valid_replicates": 1000,
+          "failed_replicates": 0
+        },
+        "auprc": 0.9585,
+        "brier_score": 0.0411,
+        "confusion_matrix": {
+          "tn": 167,
+          "fp": 29,
+          "fn": 1,
+          "tp": 53
+        },
+        "decision_threshold": 0.19,
+        "threshold_selection_source": "Training / cross-validation optimization in model bundle (Holdout test set unobserved)",
+        "audit_note": "Model executed with sensitivity 0.9815 and specificity 0.8520 under threshold 0.19.",
+        "class_distribution": {
+          "negative_count": 196,
+          "positive_count": 54,
+          "positive_prevalence_pct": 21.6
+        }
+      }
+    },
+    "stroke_risk": {
+      "model_name": "Gradient Boosting (Optuna Tuned)",
+      "algorithm": "GradientBoostingClassifier",
+      "version": "v2.0",
+      "dataset_provenance": {
+        "name": "Stroke Prediction Dataset (Synthetic Benchmark Simulation)",
+        "provenance_type": "SYNTHETIC_DEMO",
+        "is_synthetic_demonstration": true,
+        "clinical_validation_available": false,
+        "original_research_reference": "Kaggle Healthcare Stroke Prediction Dataset (Fedesoriano et al., Electronic Health Record distribution).",
+        "licensing_attribution": "Synthetic benchmark distribution. Public domain CC0 demonstration use.",
+        "intended_target": "stroke (Historical or acute stroke occurrence)",
+        "limitations": "Synthetic generation. Contains non-clinical socio-demographic features (residence type, work type, marital status)."
+      },
+      "split_details": {
+        "train": {
+          "total_samples": 2800,
+          "class_counts": {
+            "0": 2770,
+            "1": 30
+          }
+        },
+        "validation": {
+          "total_samples": 350,
+          "class_counts": {
+            "0": 346,
+            "1": 4
+          }
+        },
+        "holdout_test": {
+          "total_samples": 350,
+          "class_counts": {
+            "0": 346,
+            "1": 4
+          }
+        }
+      },
+      "metrics": {
+        "metric_status": "SYNTHETIC_DEMO_EVALUATION \u2014 NOT CLINICALLY VALIDATED",
+        "accuracy": 0.9886,
+        "accuracy_ci_95": [
+          0.9771,
+          0.9971
+        ],
+        "accuracy_bootstrap_details": {
+          "valid_replicates": 981,
+          "failed_replicates": 19
+        },
+        "precision": 0.0,
+        "recall_sensitivity": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "specificity": 1.0,
+        "specificity_ci_95": [
+          1.0,
+          1.0
+        ],
+        "f1_score": 0.0,
+        "f1_ci_95": [
+          0.0,
+          0.0
+        ],
+        "auroc": 0.9978,
+        "auroc_ci_95": [
+          0.9918,
+          1.0
+        ],
+        "auroc_bootstrap_details": {
+          "valid_replicates": 981,
+          "failed_replicates": 19
+        },
+        "auprc": 0.8542,
+        "brier_score": 0.0065,
+        "confusion_matrix": {
+          "tn": 346,
+          "fp": 0,
+          "fn": 4,
+          "tp": 0
+        },
+        "decision_threshold": 0.5,
+        "threshold_selection_source": "Training / cross-validation optimization in model bundle (Holdout test set unobserved)",
+        "audit_note": "THRESHOLD DEFECT: Decision threshold 0.5 resulted in 0 positive predictions. Sensitivity=0.0, Precision is undefined (reported as 0.0). Threshold requires re-tuning.",
+        "class_distribution": {
+          "negative_count": 346,
+          "positive_count": 4,
+          "positive_prevalence_pct": 1.14
+        }
+      }
+    },
+    "ecg_analysis": {
+      "model_name": "Random Forest (Baseline)",
+      "algorithm": "RandomForestClassifier",
+      "version": "v2.0",
+      "dataset_provenance": {
+        "name": "PhysioNet ECG Feature Dataset (Synthetic Benchmark Simulation)",
+        "provenance_type": "SYNTHETIC_DEMO",
+        "is_synthetic_demonstration": true,
+        "clinical_validation_available": false,
+        "original_research_reference": "PhysioNet MIT-BIH Arrhythmia Database (Goldberger AL, et al., 2000. Circulation 101(23):e215-e220).",
+        "licensing_attribution": "Synthetic feature extraction approximation. Open access research benchmark.",
+        "intended_target": "ecg_arrhythmia (0: Normal, 1: ST-T, 2: Arrhythmia/AFib, 3: LVH)",
+        "limitations": "Pre-computed synthetic feature intervals (RR, PR, QRS, QT). Not raw continuous electrogram time series."
+      },
+      "split_details": {
+        "train": {
+          "total_samples": 2400,
+          "class_counts": {
+            "0": 2153,
+            "1": 129,
+            "2": 110,
+            "3": 8
+          }
+        },
+        "validation": {
+          "total_samples": 300,
+          "class_counts": {
+            "0": 269,
+            "1": 16,
+            "2": 14,
+            "3": 1
+          }
+        },
+        "holdout_test": {
+          "total_samples": 300,
+          "class_counts": {
+            "0": 269,
+            "1": 16,
+            "2": 14,
+            "3": 1
+          }
+        }
+      },
+      "metrics": {
+        "metric_status": "SYNTHETIC_DEMO_EVALUATION \u2014 NOT CLINICALLY VALIDATED",
+        "accuracy": 0.9967,
+        "accuracy_ci_95": [
+          0.99,
+          1.0
+        ],
+        "accuracy_bootstrap_details": {
+          "valid_replicates": 1000,
+          "failed_replicates": 0
+        },
+        "precision_weighted": 0.9933,
+        "recall_weighted": 0.9967,
+        "specificity": "N/A (Multiclass OVR weighted)",
+        "f1_score_weighted": 0.995,
+        "auroc_ovr": 1.0,
+        "auroc_ci_95": "N/A (Multiclass OVR; reported via point estimate)",
+        "auprc": null,
+        "brier_score": null,
+        "confusion_matrix": [
+          [
+            269,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            16,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            14,
+            0
+          ],
+          [
+            1,
+            0,
+            0,
+            0
+          ]
+        ],
+        "decision_threshold": "ArgMax (Multiclass)",
+        "threshold_selection_source": "ArgMax probability selection",
+        "audit_note": "Multiclass 4-state electrophysiological rhythm classification.",
+        "class_distribution": {
+          "0": 269,
+          "1": 16,
+          "2": 14,
+          "3": 1
+        }
+      }
+    }
+  }
+}

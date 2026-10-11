@@ -64,23 +64,51 @@ export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lo
 }
 
 /**
- * Geocodes any city, area, or pincode string to real [lat, lng] coordinates
+ * Geocodes any city, area, or address string to real [lat, lng] coordinates
  */
 export async function geocodeLocation(searchQuery: string): Promise<[number, number] | null> {
-  const query = searchQuery.trim().toLowerCase();
+  const query = searchQuery.trim();
   if (!query) return null;
+  const lower = query.toLowerCase();
 
-  // 1. Quick lookup for major Indian metros
-  if (query.includes('mumbai') || query.includes('4000')) return [19.0760, 72.8777];
-  if (query.includes('bangalore') || query.includes('bengaluru') || query.includes('5600')) return [12.9716, 77.5946];
-  if (query.includes('chennai') || query.includes('6000')) return [13.0827, 80.2707];
-  if (query.includes('hyderabad') || query.includes('5000')) return [17.3850, 78.4867];
-  if (query.includes('kolkata') || query.includes('7000')) return [22.5726, 88.3639];
-  if (query.includes('delhi') || query.includes('1100')) return [28.6139, 77.2090];
+  // 1. Instant lookup for exact major Indian metro presets
+  if (lower === 'mumbai') return [19.0760, 72.8777];
+  if (lower === 'bangalore' || lower === 'bengaluru') return [12.9716, 77.5946];
+  if (lower === 'chennai') return [13.0827, 80.2707];
+  if (lower === 'hyderabad') return [17.3850, 78.4867];
+  if (lower === 'kolkata') return [22.5726, 88.3639];
+  if (lower === 'delhi' || lower === 'new delhi') return [28.6139, 77.2090];
 
-  // 2. Real Geocoding via OpenStreetMap Nominatim API
+  // 2. Google Maps Geocoder if loaded and available
+  if (typeof window !== 'undefined' && (window as any).google?.maps?.Geocoder) {
+    try {
+      const geocoder = new (window as any).google.maps.Geocoder();
+      const result = await new Promise<any>((resolve) => {
+        geocoder.geocode({ address: query }, (results: any, status: any) => {
+          if (status === 'OK' && results && results.length > 0) {
+            resolve(results[0]);
+          } else {
+            resolve(null);
+          }
+        });
+      });
+      if (result?.geometry?.location) {
+        const lat = typeof result.geometry.location.lat === 'function' ? result.geometry.location.lat() : result.geometry.location.lat;
+        const lng = typeof result.geometry.location.lng === 'function' ? result.geometry.location.lng() : result.geometry.location.lng;
+        return [lat, lng];
+      }
+    } catch (e) {
+      console.warn('Google Maps Geocoder failed, falling back to OSM:', e);
+    }
+  }
+
+  // 3. Real Geocoding via OpenStreetMap Nominatim API
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
     if (res.ok) {
       const data = await res.json();
       if (data && data.length > 0 && data[0].lat && data[0].lon) {
@@ -93,6 +121,74 @@ export async function geocodeLocation(searchQuery: string): Promise<[number, num
 
   return null;
 }
+
+/**
+ * Reverse geocodes [lat, lng] coordinates into a friendly, human-readable location name
+ */
+export async function reverseGeocodeLocation(lat: number, lng: number): Promise<string | null> {
+  // 1. Google Maps Reverse Geocoder if available
+  if (typeof window !== 'undefined' && (window as any).google?.maps?.Geocoder) {
+    try {
+      const geocoder = new (window as any).google.maps.Geocoder();
+      const result = await new Promise<any>((resolve) => {
+        geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
+          if (status === 'OK' && results && results.length > 0) {
+            resolve(results[0]);
+          } else {
+            resolve(null);
+          }
+        });
+      });
+      if (result) {
+        const components: any[] = result.address_components || [];
+        const sublocality = components.find(c => c.types.includes('sublocality') || c.types.includes('neighborhood'))?.long_name;
+        const locality = components.find(c => c.types.includes('locality'))?.long_name;
+        const state = components.find(c => c.types.includes('administrative_area_level_1'))?.long_name;
+        if (sublocality && locality) {
+          return `${sublocality}, ${locality}`;
+        }
+        if (locality && state) {
+          return `${locality}, ${state}`;
+        }
+        if (locality) return locality;
+        if (result.formatted_address) {
+          return result.formatted_address.split(',').slice(0, 2).join(',').trim();
+        }
+      }
+    } catch (e) {
+      console.warn('Google Maps reverse geocoder failed, falling back to OSM:', e);
+    }
+  }
+
+  // 2. OpenStreetMap Nominatim Reverse Geocoder
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.address) {
+        const addr = data.address;
+        const city = addr.city || addr.town || addr.village || addr.county || addr.suburb;
+        const state = addr.state || addr.state_district;
+        if (city && state && city !== state) {
+          return `${city}, ${state}`;
+        }
+        if (city) return city;
+        if (data.display_name) {
+          return data.display_name.split(',').slice(0, 2).join(',').trim();
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Reverse geocoding failed:', err);
+  }
+
+  return null;
+}
+
 
 /**
  * Dynamically loads Google Maps JS API with Places library

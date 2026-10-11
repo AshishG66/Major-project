@@ -12,7 +12,7 @@ interface AISummaryData {
 }
 
 export default function AIHealthAssistant() {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AISummaryData | null>(null);
@@ -48,7 +48,7 @@ export default function AIHealthAssistant() {
     : 'border-health-emerald text-health-emerald bg-health-emerald/10';
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 max-w-xs w-full pointer-events-auto">
+    <div className="fixed bottom-6 right-6 z-40 pointer-events-none">
       <AnimatePresence>
         {!isOpen ? (
           <motion.button
@@ -57,7 +57,8 @@ export default function AIHealthAssistant() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setIsOpen(true)}
-            className="ml-auto flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-r from-health-blue to-health-cyan text-white shadow-glow hover:scale-[1.08] transition-transform duration-200 border border-white/10"
+            className="pointer-events-auto ml-auto flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-r from-health-blue to-health-cyan text-white shadow-glow hover:scale-[1.08] transition-transform duration-200 border border-white/10"
+            title="Ask HridayaAI Assistant"
           >
             <Sparkles className="h-5 w-5 animate-pulse" />
           </motion.button>
@@ -67,7 +68,7 @@ export default function AIHealthAssistant() {
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 50, opacity: 0 }}
-            className="glass-panel-glow p-5 rounded-2xl border-white/10 relative overflow-hidden bg-gradient-to-br from-health-dark/95 via-health-card/95 to-black/90 shadow-2xl"
+            className="pointer-events-auto max-w-xs w-full glass-panel-glow p-5 rounded-2xl border-white/10 relative overflow-hidden bg-gradient-to-br from-health-dark/95 via-health-card/95 to-black/90 shadow-2xl"
           >
             {/* Header */}
             <div className="flex justify-between items-center mb-3.5 border-b border-white/5 pb-2.5">

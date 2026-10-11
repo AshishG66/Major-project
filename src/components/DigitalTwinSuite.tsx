@@ -25,10 +25,14 @@ import {
   FileText,
   Thermometer,
   Feather,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
 import ThreeHeart from './ThreeHeart';
+import { downloadReportPdf } from '../services/reportService';
 import BodyStatus from './BodyStatus';
+import DigitalTwinStatusPanel from './DigitalTwinStatusPanel';
+import { useDigitalTwinStore } from '../store/digitalTwinStore';
 
 export interface DigitalTwinSuiteProps {
   predictionId?: string;
@@ -56,6 +60,7 @@ export interface DigitalTwinSuiteProps {
   shapFactors?: Array<{ feature: string; impact: string; value?: any; shap_value?: number; importance?: number }>;
   onHoverPart?: (part: string | null) => void;
   isReportPage?: boolean;
+  show3DHeart?: boolean;
 }
 
 export default function DigitalTwinSuite({
@@ -84,7 +89,9 @@ export default function DigitalTwinSuite({
   shapFactors = [],
   onHoverPart,
   isReportPage = false,
+  show3DHeart = true,
 }: DigitalTwinSuiteProps) {
+  const simulationState = useDigitalTwinStore((s) => s.simulationState);
   const [activeTwinModule, setActiveTwinModule] = useState<'summary' | 'biometrics' | 'anatomy' | 'symptoms' | 'organs' | 'progression' | 'recovery' | 'xai'>('summary');
   const [selectedTimelineStage, setSelectedTimelineStage] = useState<'current' | '6m' | '1y' | '3y'>('current');
 
@@ -94,6 +101,21 @@ export default function DigitalTwinSuite({
   const [simStatinMed, setSimStatinMed] = useState(false);
   const [simQuitSmoking, setSimQuitSmoking] = useState(false);
   const [simWeightLoss, setSimWeightLoss] = useState(false);
+
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    setDownloadError(null);
+    try {
+      await downloadReportPdf(predictionId);
+    } catch (err: any) {
+      setDownloadError(err?.message || 'Failed to download report.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   // Normalize Risk Level
   const normRisk = useMemo(() => {
@@ -424,15 +446,32 @@ export default function DigitalTwinSuite({
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center space-x-3">
-          <a
-            href={predictionId ? `/api/prediction/report/${predictionId}` : '#'}
-            download
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white text-xs font-bold flex items-center space-x-2 shadow-xs hover:scale-[1.02] transition-transform"
-          >
-            <Download className="h-4 w-4" />
-            <span>Export Clinical PDF Report</span>
-          </a>
+        <div className="flex flex-col items-end space-y-1.5">
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 disabled:opacity-60 text-white text-xs font-bold flex items-center space-x-2 shadow-xs hover:scale-[1.02] transition-all cursor-pointer"
+            >
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Exporting Clinical PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  <span>Export Clinical PDF Report</span>
+                </>
+              )}
+            </button>
+          </div>
+          {downloadError && (
+            <span className="text-[11px] text-rose-600 font-medium">
+              {downloadError}
+            </span>
+          )}
         </div>
       </div>
 
@@ -447,10 +486,10 @@ export default function DigitalTwinSuite({
         </p>
       </div>
 
-      {/* SECTION 2 & 3: HUMAN BIOMETRIC TWIN & 3D DIGITAL HEART TWIN */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      {/* SECTION 2 & 3: HUMAN BIOMETRIC TWIN & (IF STANDALONE) CANONICAL 3D DIGITAL HEART TWIN */}
+      <div className={`grid grid-cols-1 ${show3DHeart !== false ? 'lg:grid-cols-12' : 'grid-cols-1'} gap-6 items-start`}>
         {/* Human Biometric Twin (Vitals Matrix) */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
+        <div className={`${show3DHeart !== false ? 'lg:col-span-5' : 'w-full'} flex flex-col gap-4`}>
           <div className="glass-panel p-5 rounded-3xl border border-slate-200/80 space-y-4 bg-white/80 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
               <UserCheck className="h-4 w-4 text-blue-600" />
@@ -490,35 +529,42 @@ export default function DigitalTwinSuite({
           </div>
         </div>
 
-        {/* Digital Heart Twin 3D Viewpoint */}
-        <div className="lg:col-span-7 glass-panel p-6 rounded-3xl border border-slate-200/80 flex flex-col items-center justify-between text-center relative overflow-hidden bg-white/80 shadow-sm min-h-[480px]">
-          <div className="w-full flex justify-between items-center z-10 mb-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-blue-600 flex items-center gap-2">
-              <Heart className="h-4 w-4 text-rose-500 animate-pulse" />
-              <span>3. Digital Heart Twin (Skeletal GLB PBR)</span>
-            </h3>
-            <span className="text-[9px] text-slate-500 uppercase font-semibold">
-              Ejection Fraction: {Math.max(35, 100 - Math.round(riskScore * 0.7))}%
-            </span>
-          </div>
+        {/* Canonical Digital Heart Twin 3D Viewpoint (Displayed only in standalone reports where upper centerpiece is not present) */}
+        {show3DHeart !== false && (
+          <div className="lg:col-span-7 glass-panel p-5 rounded-3xl border border-slate-200/80 flex flex-col items-center justify-between text-center relative overflow-hidden bg-white/80 shadow-sm">
+            <div className="w-full flex justify-between items-center z-10 mb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-600 flex items-center gap-2">
+                <Heart className="h-4 w-4 text-rose-500 animate-pulse" />
+                <span>3. Canonical 3D Digital Heart Twin</span>
+              </h3>
+              <span className="text-[9px] text-slate-500 uppercase font-semibold">
+                Ejection Fraction: {Math.max(35, 100 - Math.round(riskScore * 0.7))}%
+              </span>
+            </div>
 
-          <div className="w-full flex-1 relative min-h-[400px]">
-            <ThreeHeart
-              heartRate={heartRate}
-              riskLevel={riskLevel}
-              riskScore={riskScore}
-              systolicBP={systolicBP}
-              diastolicBP={diastolicBP}
-              cholesterol={cholesterol}
-              bmi={bmi}
-              bloodSugar={bloodSugar}
-              smoking={smoking}
-              age={age}
-              shapFactors={shapFactors}
-              onHoverPart={onHoverPart}
-            />
+            <div className="w-full relative z-0 flex items-center justify-center mx-auto my-auto h-[300px] lg:h-[320px]">
+              <ThreeHeart
+                simulationState={simulationState}
+                heartRate={heartRate}
+                riskLevel={riskLevel}
+                riskScore={riskScore}
+                systolicBP={systolicBP}
+                diastolicBP={diastolicBP}
+                cholesterol={cholesterol}
+                bmi={bmi}
+                bloodSugar={bloodSugar}
+                smoking={smoking}
+                age={age}
+                shapFactors={shapFactors}
+                onHoverPart={onHoverPart}
+              />
+            </div>
+
+            <div className="w-full mt-4 border-t border-slate-100 pt-3">
+              <DigitalTwinStatusPanel />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* SECTION 4: AI SYMPTOM VISUALIZATION */}
@@ -546,7 +592,7 @@ export default function DigitalTwinSuite({
       </div>
 
       {/* SECTION 5 & 6: ORGAN HEALTH & AFFECTED BODY REGIONS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Organ Health Dashboard */}
         <div className="lg:col-span-7 glass-panel p-6 rounded-3xl border border-slate-200/80 space-y-4 bg-white/80 shadow-sm">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">

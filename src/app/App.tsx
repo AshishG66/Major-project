@@ -6,8 +6,13 @@ import { Loader2 } from 'lucide-react';
 
 // Layout is always needed so keep static
 import DashboardLayout from '../components/layout/DashboardLayout';
+import ErrorBoundary from '../components/ErrorBoundary';
 
-// Lazy-load ALL page components for route-level code splitting
+// Static imports for core clinical navigation pages to guarantee immediate zero-delay rendering
+import AnalyticsPage from '../pages/AnalyticsPage';
+import ReportsPage from '../pages/ReportsPage';
+
+// Lazy-load secondary and role-specific page components for code splitting
 const LandingPage = lazy(() => import('../pages/LandingPage'));
 const LoginPage = lazy(() => import('../pages/LoginPage'));
 const RegisterPage = lazy(() => import('../pages/RegisterPage'));
@@ -16,11 +21,10 @@ const PredictionWizardPage = lazy(() => import('../pages/PredictionWizardPage'))
 const ChatPage = lazy(() => import('../pages/ChatPage'));
 const PreventionPage = lazy(() => import('../pages/PreventionPage'));
 const NearbyPage = lazy(() => import('../pages/NearbyPage'));
-const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage'));
 const DoctorPortalPage = lazy(() => import('../pages/DoctorPortalPage'));
 const AdminPortalPage = lazy(() => import('../pages/AdminPortalPage'));
+const ClinicalValidationPage = lazy(() => import('../pages/ClinicalValidationPage'));
 
-import CustomCursor from '../components/CustomCursor';
 
 const queryClient = new QueryClient();
 
@@ -55,57 +59,60 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        {/* Global Premium Portfolio Cursor & Noise Overlay */}
-        <CustomCursor />
-        <div className="noise-overlay" />
+        {/* Global Application Error Boundary */}
+        <ErrorBoundary title="Unable to load this section.">
+          {/* Main Application Routes with code-splitting Suspense */}
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {/* Public Pages */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
 
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            {/* Public Pages */}
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-
-            {/* Authenticated Dashboard Core */}
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="dashboard" element={<DashboardPage />} />
-              <Route path="prediction" element={<PredictionWizardPage />} />
-              <Route path="chat" element={<ChatPage />} />
-              <Route path="prevention" element={<PreventionPage />} />
-              <Route path="nearby" element={<NearbyPage />} />
-              <Route path="analytics" element={<AnalyticsPage />} />
-              
-              {/* Portals */}
-              <Route 
-                path="doctor" 
+              {/* Authenticated Dashboard Core */}
+              <Route
+                path="/"
                 element={
-                  <ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN']}>
-                    <DoctorPortalPage />
+                  <ProtectedRoute>
+                    <DashboardLayout />
                   </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="admin" 
-                element={
-                  <ProtectedRoute allowedRoles={['ADMIN']}>
-                    <AdminPortalPage />
-                  </ProtectedRoute>
-                } 
-              />
-            </Route>
+                }
+              >
+                <Route path="dashboard" element={<DashboardPage />} />
+                <Route path="prediction" element={<PredictionWizardPage />} />
+                <Route path="chat" element={<ChatPage />} />
+                <Route path="prevention" element={<PreventionPage />} />
+                <Route path="nearby" element={<NearbyPage />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="validation" element={<ClinicalValidationPage />} />
+                
+                {/* Portals */}
+                <Route 
+                  path="doctor" 
+                  element={
+                    <ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN']}>
+                      <DoctorPortalPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="admin" 
+                  element={
+                    <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <AdminPortalPage />
+                    </ProtectedRoute>
+                  } 
+                />
+              </Route>
 
-            {/* Catch-all Fallback redirects to landing */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
+              {/* Catch-all Fallback redirects to landing */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </QueryClientProvider>
   );
 }
+

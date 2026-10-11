@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npx tsx --test src/utils/weightRecommendation.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

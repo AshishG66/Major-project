@@ -19,33 +19,27 @@ class SocketService {
     this.wss.on('connection', (ws: AuthenticatedSocket, req) => {
       ws.isAlive = true;
 
-      // Extract userId from URL query parameter, e.g. ws://localhost:5000/?userId=xxxx or ?token=xxxx
+      // Extract JWT authentication token from URL query parameters (e.g. ws://localhost:5000/?token=xxxx)
       const url = new URL(req.url || '', `http://${req.headers.host}`);
-      const userId = url.searchParams.get('userId');
       const token = url.searchParams.get('token');
 
-      let resolvedUserId: string | null = userId;
-
-      // If JWT token is provided, verify and decode it to resolve userId
-      if (token) {
-        if (token === 'demo-token-123') {
-          resolvedUserId = 'demo-patient-amit';
-        } else {
-          try {
-            const JWT_SECRET = process.env.JWT_SECRET || 'hridyadarpan_super_secret_jwt_key_2026';
-            const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
-            resolvedUserId = decoded.id;
-          } catch (err: any) {
-            logger.warn(`[WebSocket] Connection rejected due to invalid token: ${err.message}`);
-            ws.close(4001, 'Unauthorized');
-            return;
-          }
-        }
+      if (!token) {
+        logger.warn('[WebSocket] Connection rejected: No authentication token provided');
+        ws.close(4001, 'Unauthorized');
+        return;
       }
 
-      if (!resolvedUserId) {
-        logger.warn('[WebSocket] Connection rejected: No user identity provided');
-        ws.close(4000, 'User identification required');
+      let resolvedUserId: string | null = null;
+      try {
+        const JWT_SECRET = process.env.JWT_SECRET || 'hridyadarpan_super_secret_jwt_key_2026';
+        const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+        if (!decoded || !decoded.id) {
+          throw new Error('Malformed token payload');
+        }
+        resolvedUserId = decoded.id;
+      } catch (err: any) {
+        logger.warn(`[WebSocket] Connection rejected due to invalid token: ${err.message}`);
+        ws.close(4001, 'Unauthorized');
         return;
       }
 

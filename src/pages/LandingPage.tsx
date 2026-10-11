@@ -21,65 +21,71 @@ export default function LandingPage() {
   // Mouse hover ECG speed state
   const [ecgSpeedMultiplier, setEcgSpeedMultiplier] = useState(1.0);
 
-  // Global mouse coordinates for interactive background lights
-  const [bgCoords, setBgCoords] = useState({ x: 50, y: 50 });
-
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Compute ECG beat rate multiplier
   const animationDuration = (60 / heartRate).toFixed(2);
 
-  // Track global cursor for background color updates
-  const handleBgMouseMove = (e: React.MouseEvent) => {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    setBgCoords({
-      x: Math.round((e.clientX / w) * 100),
-      y: Math.round((e.clientY / h) * 100)
-    });
-  };
-
-  // Canvas particle effects
+  // Canvas particle effects - optimized with offscreen pausing and cached rect
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationFrameId: number;
+    let animationFrameId: number | null = null;
+    let isVisible = true;
     let particles: Array<{ x: number; y: number; vx: number; vy: number; radius: number; color: string }> = [];
 
+    let canvasRect = canvas.getBoundingClientRect();
     const handleResize = () => {
       canvas.width = canvas.parentElement?.clientWidth || window.innerWidth;
       canvas.height = canvas.parentElement?.clientHeight || 700;
+      canvasRect = canvas.getBoundingClientRect();
     };
     handleResize();
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
 
     const colors = ['rgba(59, 130, 246, 0.35)', 'rgba(6, 182, 212, 0.35)', 'rgba(244, 63, 94, 0.28)'];
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 40; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        radius: Math.random() * 2.5 + 1,
+        vx: (Math.random() - 0.5) * 0.35,
+        vy: (Math.random() - 0.5) * 0.35,
+        radius: Math.random() * 2 + 1,
         color: colors[Math.floor(Math.random() * colors.length)]
       });
     }
 
     let mouse = { x: -1000, y: -1000 };
     const handleMouseMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = e.clientX - rect.left;
-      mouse.y = e.clientY - rect.top;
+      mouse.x = e.clientX - canvasRect.left;
+      mouse.y = e.clientY - canvasRect.top;
     };
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+
+    const observer = new IntersectionObserver(([entry]) => {
+      isVisible = entry.isIntersecting;
+      if (isVisible && !animationFrameId) {
+        animate();
+      } else if (!isVisible && animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+    }, { threshold: 0.05 });
+    observer.observe(canvas);
 
     const animate = () => {
+      if (!isVisible) {
+        animationFrameId = null;
+        return;
+      }
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      particles.forEach((p) => {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
 
@@ -89,30 +95,28 @@ export default function LandingPage() {
         const dx = p.x - mouse.x;
         const dy = p.y - mouse.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 120) {
-          const force = (120 - dist) / 120;
-          p.x += (dx / dist) * force * 2.5;
-          p.y += (dy / dist) * force * 2.5;
+        if (dist < 100) {
+          const force = (100 - dist) / 100;
+          p.x += (dx / dist) * force * 2;
+          p.y += (dy / dist) * force * 2;
         }
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = p.color;
         ctx.fill();
-      });
+      }
 
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 130) {
+          if (dist < 110) {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(255, 255, 255, ${0.06 * (1 - dist / 130)})`;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.05 * (1 - dist / 110)})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
@@ -124,7 +128,8 @@ export default function LandingPage() {
     animate();
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      observer.disconnect();
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', handleMouseMove);
     };
@@ -192,16 +197,12 @@ export default function LandingPage() {
 
   return (
     <div 
-      onMouseMove={handleBgMouseMove}
-      className="min-h-screen bg-slate-50 text-slate-900 relative overflow-hidden flex flex-col scroll-smooth transition-colors duration-500"
+      className="min-h-screen bg-slate-50 text-slate-900 relative overflow-hidden flex flex-col transition-colors duration-300"
     >
-      {/* Dynamic interactive background lights */}
-      <div 
-        className="absolute w-[50%] h-[50%] bg-blue-500/10 rounded-full blur-[140px] pointer-events-none transition-all duration-700 ease-out" 
-        style={{ left: `${bgCoords.x - 25}%`, top: `${bgCoords.y - 25}%` }}
-      />
-      <div className="absolute top-[35%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/8 rounded-full blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-[5%] left-[10%] w-[50%] h-[50%] bg-blue-600/6 rounded-full blur-[120px] pointer-events-none" />
+      {/* Ambient background glow - GPU composited */}
+      <div className="fixed top-0 left-0 w-[500px] h-[500px] bg-blue-500/8 rounded-full blur-3xl pointer-events-none -z-10" style={{ transform: 'translateZ(0)' }} />
+      <div className="fixed top-[35%] right-[-5%] w-[450px] h-[450px] bg-cyan-500/6 rounded-full blur-3xl pointer-events-none -z-10" style={{ transform: 'translateZ(0)' }} />
+      <div className="fixed bottom-[5%] left-[5%] w-[400px] h-[400px] bg-blue-600/5 rounded-full blur-3xl pointer-events-none -z-10" style={{ transform: 'translateZ(0)' }} />
 
       {/* Floating SVG grids background */}
       <div className="absolute inset-0 bg-grid-pattern opacity-60 pointer-events-none" />

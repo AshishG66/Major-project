@@ -67,9 +67,18 @@ class UnifiedPatientRequest(BaseModel):
     chestPainType: int = Field(default=0, ge=0, le=3, example=0)
     sleepDuration: float = Field(default=7.5, ge=0, le=24, example=7.0)
     stressLevel: int = Field(default=5, ge=1, le=10, example=6)
-    ejectionFraction: Optional[float] = Field(default=58.0, ge=10, le=80, example=58.0)
-    serumCreatinine: Optional[float] = Field(default=1.0, ge=0.1, le=10.0, example=1.0)
-    stElevation: Optional[float] = Field(default=0.05, ge=-3.0, le=5.0, example=0.05)
+    ejectionFraction: Optional[float] = Field(default=None, ge=10, le=80, example=58.0)
+    serumCreatinine: Optional[float] = Field(default=None, ge=0.1, le=10.0, example=1.0)
+    stElevation: Optional[float] = Field(default=None, ge=-3.0, le=5.0, example=0.05)
+    everMarried: Optional[str] = Field(default=None)
+    workType: Optional[str] = Field(default=None)
+    residenceType: Optional[str] = Field(default=None)
+    rrInterval: Optional[float] = Field(default=None, ge=300, le=2000)
+    prInterval: Optional[float] = Field(default=None, ge=50, le=400)
+    qrsDuration: Optional[float] = Field(default=None, ge=30, le=300)
+    qtInterval: Optional[float] = Field(default=None, ge=200, le=700)
+    pWaveAmp: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
+    tWaveAmp: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
 
 @app.get("/health")
 def health_check():
@@ -164,8 +173,12 @@ def predict_heart_risk(request: UnifiedPatientRequest):
     """Dataset 1: Framingham 10-Year Cardiovascular Disease Risk Model."""
     try:
         orch = get_orchestrator()
-        prob = orch.run_framingham_predict(request.dict())
+        res = orch.run_framingham_predict(request.dict())
+        if res.get("status") != "SUCCESS":
+            return res
+        prob = res["probability"]
         return {
+            "status": "SUCCESS",
             "modelDomain": "Framingham Heart Study",
             "tenYearCHDProbability": round(prob, 4),
             "riskScore": round(prob * 100.0, 1),
@@ -179,8 +192,13 @@ def predict_heart_failure(request: UnifiedPatientRequest):
     """Dataset 3: Heart Failure Clinical Records & Pumping Efficiency Model."""
     try:
         orch = get_orchestrator()
-        prob, ef = orch.run_heart_failure_predict(request.dict())
+        res = orch.run_heart_failure_predict(request.dict())
+        if res.get("status") != "SUCCESS":
+            return res
+        prob = res["probability"]
+        ef = res.get("ejectionFraction", 55.0)
         return {
+            "status": "SUCCESS",
             "modelDomain": "Heart Failure Clinical Records",
             "heartFailureProbability": round(prob, 4),
             "estimatedEjectionFraction": round(ef, 1),
@@ -194,8 +212,12 @@ def predict_stroke(request: UnifiedPatientRequest):
     """Dataset 4: Stroke Risk & Brain Health Model."""
     try:
         orch = get_orchestrator()
-        prob = orch.run_stroke_predict(request.dict())
+        res = orch.run_stroke_predict(request.dict())
+        if res.get("status") != "SUCCESS":
+            return res
+        prob = res["probability"]
         return {
+            "status": "SUCCESS",
             "modelDomain": "Stroke Prediction Dataset",
             "strokeProbability": round(prob, 4),
             "brainHealthScore": int(max(20, 100 - prob * 80))
@@ -208,10 +230,13 @@ def predict_ecg(request: UnifiedPatientRequest):
     """Dataset 5: PhysioNet ECG Waveform Feature Model."""
     try:
         orch = get_orchestrator()
-        status = orch.run_ecg_predict(request.dict())
+        res = orch.run_ecg_predict(request.dict())
+        if res.get("status") != "SUCCESS":
+            return res
         return {
+            "status": "SUCCESS",
             "modelDomain": "PhysioNet ECG Feature Dataset",
-            "ecgStatus": status,
+            "ecgStatus": res.get("ecgStatus"),
             "restingHeartRate": request.heartRate
         }
     except Exception as e:

@@ -44,7 +44,7 @@ export default function RegisterPage() {
       role: 'USER',
       firstName: 'Demo',
       lastName: 'User'
-    }, 'demo-token-123');
+    }, 'demo-client-session');
     navigate('/dashboard');
   };
 

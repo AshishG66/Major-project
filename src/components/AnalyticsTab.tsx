@@ -197,9 +197,9 @@ export default function AnalyticsTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* SHAP Waterfall Card */}
-        <div className="lg:col-span-6 glass-panel p-6 rounded-2xl flex flex-col justify-between h-[310px] bg-white/80 border border-slate-200/80 shadow-sm">
+        <div className="lg:col-span-6 glass-panel p-6 rounded-2xl flex flex-col justify-between h-auto min-h-[280px] bg-white/80 border border-slate-200/80 shadow-sm">
           <div>
             <h4 className="font-display font-bold text-xs uppercase text-rose-600 tracking-wider border-b border-slate-100 pb-2">
               SHAP Waterfall Attribution Weights
@@ -240,7 +240,7 @@ export default function AnalyticsTab({
         </div>
 
         {/* Activity Rings (Static counters optimization) */}
-        <div className="lg:col-span-3 glass-panel p-6 rounded-2xl flex flex-col justify-between h-[310px] relative bg-white/80 border border-slate-200/80 shadow-sm">
+        <div className="lg:col-span-3 glass-panel p-6 rounded-2xl flex flex-col justify-between h-auto min-h-[280px] relative bg-white/80 border border-slate-200/80 shadow-sm">
           <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Smartwatch Activity Rings</span>
 
           <div className="flex flex-col items-center justify-center flex-1 mt-4">

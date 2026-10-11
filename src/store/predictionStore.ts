@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useDigitalTwinStore } from './digitalTwinStore';
 
 export interface PatientFactors {
   age: number;
@@ -168,6 +169,11 @@ export const usePredictionStore = create<PredictionState>((set, get) => {
 
       const newStats = computeStats(updatedHistory, data);
 
+      // Reactively compute and set structured patient-specific Digital Twin state
+      try {
+        useDigitalTwinStore.getState().setSimulationFromPrediction(data);
+      } catch {}
+
       set({
         latestPrediction: data,
         predictionHistory: updatedHistory,
@@ -182,6 +188,12 @@ export const usePredictionStore = create<PredictionState>((set, get) => {
 
       const latest = get().latestPrediction || history[0] || null;
       const newStats = computeStats(history, latest);
+
+      if (latest) {
+        try {
+          useDigitalTwinStore.getState().setSimulationFromPrediction(latest);
+        } catch {}
+      }
 
       set({
         predictionHistory: history,
@@ -200,6 +212,10 @@ export const usePredictionStore = create<PredictionState>((set, get) => {
       } catch {}
 
       const newStats = computeStats(updatedHistory, data);
+
+      try {
+        useDigitalTwinStore.getState().setSimulationFromPrediction(data);
+      } catch {}
 
       set({
         latestPrediction: data,
@@ -220,6 +236,7 @@ export const usePredictionStore = create<PredictionState>((set, get) => {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(HISTORY_KEY);
         localStorage.removeItem('latest_scan_result');
+        useDigitalTwinStore.getState().resetDigitalTwinStore();
       } catch {}
       set({
         latestPrediction: null,

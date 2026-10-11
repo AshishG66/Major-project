@@ -32,6 +32,7 @@ import modelsRouter from './models/models.router.js';
 import devicesRouter from './devices/devices.router.js';
 import simulationRouter from './simulation/simulation.router.js';
 import analyticsRouter from './analytics/analytics.router.js';
+import { createAuditLogEntry } from './services/hashChainService.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -330,52 +331,176 @@ app.get('/api/badges', authenticate, async (req, res) => {
 // 5. DOCTOR PORTAL & NOTES API
 app.post('/api/doctor/note', authenticate, async (req, res) => {
   try {
-    const doctorId = (req as AuthRequest).user?.id;
-    const role = (req as AuthRequest).user?.role;
-    
-    if (role !== 'DOCTOR' && role !== 'ADMIN') {
-      return res.status(403).json({ success: false, message: 'Forbidden. Access restricted to medical professionals.' });
+    const caller = (req as AuthRequest).user;
+    if (!caller) {
+      return res.status(401).json({ success: false, message: 'Access denied. Authentication required.' });
+    }
+
+    if (caller.role !== 'DOCTOR' && caller.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Forbidden. Access restricted to licensed medical professionals.' });
     }
 
     const { patientId, note } = req.body;
+    if (!patientId || typeof patientId !== 'string' || !note || typeof note !== 'string' || !note.trim()) {
+      return res.status(400).json({ success: false, message: 'Patient ID and clinical note content are required.' });
+    }
+
+    const patient = await prisma.user.findUnique({
+      where: { id: patientId },
+      select: { id: true, role: true }
+    });
+
+    if (!patient || patient.role !== 'USER') {
+      return res.status(404).json({ success: false, message: 'Patient not found.' });
+    }
+
     const doctorNote = await prisma.doctorNote.create({
       data: {
-        doctorId: doctorId!,
+        doctorId: caller.id,
         patientId,
-        note,
+        note: note.trim(),
+      },
+      include: {
+        doctor: {
+          include: { profile: true }
+        }
       }
     });
 
+    await createAuditLogEntry({
+      userId: caller.id,
+      patientId,
+      eventType: 'CLINICAL_NOTE_CREATED',
+      action: 'DOCTOR_WRITE_NOTE',
+      details: `Clinical note created by doctor ${caller.id} for patient ${patientId}`,
+      ipAddress: req.ip,
+    }).catch((err: any) => logger.warn(`Failed to audit note creation: ${err.message}`));
+
     res.status(201).json({ success: true, doctorNote });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    logger.error(`Error authoring doctor note: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 });
 
 app.get('/api/doctor/notes/:patientId', authenticate, async (req, res) => {
   try {
+    const caller = (req as AuthRequest).user;
+    if (!caller) {
+      return res.status(401).json({ success: false, message: 'Access denied. Authentication required.' });
+    }
+
     const { patientId } = req.params;
-    const notes = await prisma.doctorNote.findMany({
-      where: { patientId: patientId as string },
-      orderBy: { createdAt: 'desc' },
-      include: { doctor: { include: { profile: true } } }
-    });
-    res.status(200).json({ success: true, notes });
+    if (!patientId || typeof patientId !== 'string') {
+      return res.status(400).json({ success: false, message: 'Invalid patient identifier.' });
+    }
+
+    // Role-based authorization & patient-level boundary enforcement
+    if (caller.role === 'USER') {
+      // Ordinary patient: strictly prohibited from viewing any other patient's notes
+      if (caller.id !== patientId) {
+        return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' });
+      }
+
+      const notes = await prisma.doctorNote.findMany({
+        where: { patientId },
+        orderBy: { createdAt: 'desc' },
+        include: { doctor: { include: { profile: true } } }
+      });
+      return res.status(200).json({ success: true, notes });
+    }
+
+    if (caller.role === 'DOCTOR') {
+      // Enforce assigned-doctor authorization:
+      // A doctor may access notes only for patients actively assigned to or treated by that doctor.
+      const hasClinicalRelationship = await prisma.doctorNote.findFirst({
+        where: {
+          patientId: patientId,
+          doctorId: caller.id,
+        },
+      });
+
+      if (!hasClinicalRelationship) {
+        // Return uniform 403 without revealing whether patientId exists in database
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You are not authorized to access clinical records for this patient.',
+        });
+      }
+
+      const notes = await prisma.doctorNote.findMany({
+        where: { patientId },
+        orderBy: { createdAt: 'desc' },
+        include: { doctor: { include: { profile: true } } }
+      });
+      return res.status(200).json({ success: true, notes });
+    }
+
+    if (caller.role === 'ADMIN') {
+      // Administrative Authorization Policy:
+      // Administrators may access clinical notes strictly for clinical audit, quality assurance,
+      // and medico-legal compliance. Every administrative access is immutably logged to AuditLog.
+      const patient = await prisma.user.findUnique({
+        where: { id: patientId },
+        select: { id: true, role: true },
+      });
+
+      if (!patient || patient.role !== 'USER') {
+        return res.status(404).json({ success: false, message: 'Patient record not found.' });
+      }
+
+      await createAuditLogEntry({
+        userId: caller.id,
+        patientId: patientId,
+        eventType: 'CLINICAL_NOTE_AUDIT_ACCESS',
+        action: 'ADMIN_READ_PATIENT_NOTES',
+        details: `Administrator ${caller.id} accessed clinical notes for patient ${patientId} under institutional audit policy.`,
+        ipAddress: req.ip,
+      }).catch((err: any) => logger.warn(`Failed to audit admin note access: ${err.message}`));
+
+      const notes = await prisma.doctorNote.findMany({
+        where: { patientId },
+        orderBy: { createdAt: 'desc' },
+        include: { doctor: { include: { profile: true } } }
+      });
+
+      return res.status(200).json({
+        success: true,
+        auditNotice: 'Administrative clinical audit access logged.',
+        notes,
+      });
+    }
+
+    return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    logger.error(`Error retrieving doctor notes: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 });
 
 app.get('/api/doctor/patients', authenticate, async (req, res) => {
   try {
-    const role = (req as AuthRequest).user?.role;
-    if (role !== 'DOCTOR' && role !== 'ADMIN') {
-      return res.status(403).json({ success: false, message: 'Access denied.' });
+    const caller = (req as AuthRequest).user;
+    if (!caller) {
+      return res.status(401).json({ success: false, message: 'Access denied. Authentication required.' });
     }
 
-    // List all users with profiles and latest predictions
+    if (caller.role !== 'DOCTOR' && caller.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' });
+    }
+
+    // Role-specific patient scoping:
+    // Administrators view system-wide patient registry for population statistics.
+    // Doctors view only patients assigned to them or whom they are actively treating.
+    const whereClause: any = { role: 'USER' };
+    if (caller.role === 'DOCTOR') {
+      whereClause.doctorNotes = {
+        some: { doctorId: caller.id }
+      };
+    }
+
     const patients = await prisma.user.findMany({
-      where: { role: 'USER' },
+      where: whereClause,
       include: {
         profile: true,
         predictions: { take: 1, orderBy: { createdAt: 'desc' } }
@@ -384,7 +509,8 @@ app.get('/api/doctor/patients', authenticate, async (req, res) => {
 
     res.status(200).json({ success: true, patients });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    logger.error(`Error retrieving patients list: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 });
 
@@ -954,4 +1080,8 @@ const startServer = async () => {
   }
 };
 
-startServer();
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
+
+export { app, httpServer, startServer };

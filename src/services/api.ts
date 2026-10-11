@@ -63,15 +63,13 @@ async function request(endpoint: string, options: RequestOptions = {}, isRetry =
     return handleDemoRequest(endpoint, options);
   }
 
-  let token = useAuthStore.getState().token;
-  if (!token && isDemo) {
-    token = 'demo-token-123';
-  }
+  const token = useAuthStore.getState().token;
   
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
   
-  if (token) {
+  // Attach valid authentication token if present (never inject mock/demo credentials into backend requests)
+  if (token && !token.startsWith('demo-')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
@@ -107,7 +105,7 @@ async function request(endpoint: string, options: RequestOptions = {}, isRetry =
       console.log(`[HridayaAI Diagnostic] platform=${isCapacitor ? 'android' : 'web'} endpoint=${endpoint} responseStatus=${response.status} responseReceived=true durationMs=${durationMs}`);
     }
 
-    if (response.status === 401 && !isAuthEndpoint && token !== 'demo-token-123' && !isRetry) {
+    if (response.status === 401 && !isAuthEndpoint && !isRetry) {
       const { refreshToken, user } = useAuthStore.getState();
       if (refreshToken) {
         try {

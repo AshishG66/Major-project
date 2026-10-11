@@ -36,9 +36,9 @@ export default function SimulationTab({
 }: SimulationTabProps) {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* What-if Simulator Card */}
-        <div className="lg:col-span-5 glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col justify-between h-[310px]">
+        <div className="lg:col-span-5 glass-panel p-6 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col justify-between h-auto min-h-[290px]">
           <div>
             <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-4">
               <div className="flex items-center space-x-2">

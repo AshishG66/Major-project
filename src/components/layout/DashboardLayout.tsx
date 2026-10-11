@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Home, Activity, MessageSquare, Shield, MapPin, BarChart3, LogOut, Menu, X, Bell, Clipboard, ShieldAlert, Sparkles, UserCheck, RefreshCw, Globe, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Heart, Home, Activity, MessageSquare, Shield, MapPin, BarChart3, LogOut, Menu, X, Bell, Clipboard, ShieldAlert, Sparkles, UserCheck, RefreshCw, Globe, AlertTriangle, CheckCircle2, FileText, Loader2, ShieldCheck } from 'lucide-react';
+import ErrorBoundary from '../ErrorBoundary';
 import { useAuthStore } from '../../store/authStore';
+
 import { usePredictionStore } from '../../store/predictionStore';
 import { useWebSockets } from '../../hooks/useWebSockets';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -112,8 +114,8 @@ export default function DashboardLayout() {
         localStorage.setItem('original_token', useAuthStore.getState().token || '');
       }
       setAuth(
-        { id: 'demo-patient-amit', email: 'amit.sharma@demo.com', role: 'ADMIN', firstName: 'Amit', lastName: 'Sharma' },
-        'demo-token-123'
+        { id: 'demo-patient-amit', email: 'amit.sharma@demo.com', role: 'USER', firstName: 'Amit', lastName: 'Sharma' },
+        'demo-client-session'
       );
       setActiveDemoPatientId('demo-patient-amit');
       setActivePatientId('demo-patient-amit');
@@ -127,6 +129,8 @@ export default function DashboardLayout() {
         localStorage.removeItem('original_user');
         localStorage.removeItem('original_token');
       } else {
+        usePredictionStore.getState().resetPredictionStore();
+        queryClient.clear();
         clearAuth();
         navigate('/login');
       }
@@ -154,11 +158,11 @@ export default function DashboardLayout() {
       {
         id: patId,
         email: `${firstNames[patId].toLowerCase()}@demo.com`,
-        role: 'ADMIN',
+        role: 'USER',
         firstName: firstNames[patId],
         lastName: lastNames[patId]
       },
-      'demo-token-123'
+      'demo-client-session'
     );
 
     queryClient.invalidateQueries();
@@ -171,6 +175,8 @@ export default function DashboardLayout() {
     { name: t('preventionCoach'), path: '/prevention', icon: Shield },
     { name: t('nearbyServices'), path: '/nearby', icon: MapPin },
     { name: t('healthAnalytics'), path: '/analytics', icon: BarChart3 },
+    { name: t('reportCenter'), path: '/reports', icon: FileText },
+    { name: 'Clinical Validation', path: '/validation', icon: ShieldCheck },
   ];
 
   if (user?.role === 'DOCTOR' || user?.role === 'ADMIN') {
@@ -187,9 +193,9 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-[#f8f9ff] text-[#0b1c30] flex relative overflow-x-hidden font-sans">
-      {/* Background Medical Grid & Ambient Light */}
-      <div className="fixed inset-0 pointer-events-none medical-grid opacity-60 z-0" />
-      <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-gradient-radial from-[#3ee5fe]/10 to-transparent rounded-full blur-3xl pointer-events-none z-0" />
+      {/* Background Medical Grid & Ambient Light - Isolated GPU Composited */}
+      <div className="fixed inset-0 pointer-events-none medical-grid opacity-50 z-0" style={{ transform: 'translateZ(0)' }} />
+      <div className="fixed top-0 right-0 w-[500px] h-[500px] bg-gradient-radial from-[#3ee5fe]/10 to-transparent rounded-full blur-3xl pointer-events-none z-0" style={{ transform: 'translateZ(0)' }} />
 
       {/* Persistent Desktop Sidebar (280px) */}
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-[280px] bg-white border-r border-[#c3c5d9]/60 p-6 z-30 shrink-0 shadow-stitch">
@@ -471,18 +477,43 @@ export default function DashboardLayout() {
 
         {/* Content Body Container */}
         <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6 relative">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 10, scale: 0.995 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.995 }}
-              transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-              className="min-h-full w-full"
+          <ErrorBoundary
+            key={location.pathname}
+            title={
+              location.pathname === '/analytics'
+                ? 'Unable to load Health Analytics.'
+                : location.pathname === '/reports'
+                ? 'Unable to load Reports.'
+                : 'Unable to load this page.'
+            }
+          >
+            <Suspense
+              fallback={
+                <div className="h-full flex items-center justify-center min-h-[60vh]">
+                  <div className="flex flex-col items-center space-y-4">
+                    <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                    <p className="text-xs text-slate-500 font-semibold tracking-wider uppercase">
+                      {location.pathname === '/analytics'
+                        ? 'Loading Health Analytics...'
+                        : location.pathname === '/reports'
+                        ? 'Loading Reports...'
+                        : 'Loading module...'}
+                    </p>
+                  </div>
+                </div>
+              }
             >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                className="min-h-full w-full"
+              >
+                <Outlet />
+              </motion.div>
+            </Suspense>
+          </ErrorBoundary>
         </main>
 
         {/* Mobile Bottom Navigation Bar (Phones & Small Screens) */}

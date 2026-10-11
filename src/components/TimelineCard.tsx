@@ -8,7 +8,7 @@ interface TimelineCardProps {
 
 const TimelineCard = ({ historyLoading, displayHistory }: TimelineCardProps) => {
   return (
-    <div className="lg:col-span-8 glass-panel p-6 rounded-2xl flex flex-col h-[280px] relative overflow-hidden bg-white/80 border border-slate-200/80 shadow-sm">
+    <div className="glass-panel p-5 rounded-2xl flex flex-col min-h-[220px] max-h-[340px] relative overflow-hidden bg-white/80 border border-slate-200/80 shadow-sm">
       <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-500 mb-4">Patient Scan History Timeline</h3>
       
       <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin flex flex-col">

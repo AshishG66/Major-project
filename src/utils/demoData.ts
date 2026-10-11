@@ -661,22 +661,33 @@ export async function handleDemoRequest(endpoint: string, options: any = {}): Pr
   // 14. POST /chat/message
   if (endpoint === '/chat/message' && method === 'POST') {
     const { sessionId, message } = options.body;
-    try {
-      const res = await fetch('/api/chat/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-token-123' },
-        body: JSON.stringify({ sessionId, message }),
-      });
-      if (res.ok) {
-        return await res.json();
+    const currentToken = useAuthStore.getState().token;
+    if (currentToken && !currentToken.startsWith('demo-')) {
+      try {
+        const res = await fetch('/api/chat/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+          body: JSON.stringify({ sessionId, message }),
+        });
+        if (res.ok) {
+          return await res.json();
+        }
+        const errData = await res.json().catch(() => ({}));
+        console.error('Chat API Error Response:', errData);
+      } catch (e: any) {
+        console.error('Chat API Error:', e);
       }
-      const errData = await res.json().catch(() => ({}));
-      console.error('Chat API Error Response:', errData);
-      throw new Error(errData.message || 'HridyaAI is temporarily unavailable.');
-    } catch (e: any) {
-      console.error('Chat API Error:', e);
-      throw new Error('HridyaAI is temporarily unavailable.');
     }
+    // Isolated simulated demo response: no network bypass or fake credentials sent to backend
+    return {
+      success: true,
+      message: {
+        id: 'demo-msg-' + Date.now(),
+        role: 'ASSISTANT',
+        content: `[Demo Mode Simulation] Based on simulated vital parameters, cardiovascular risk is being managed. For personalized clinical assistance with verified patient records, please log in with your account.`,
+        createdAt: new Date().toISOString()
+      }
+    };
   }
 
   // 15. POST /chat/report/upload
@@ -920,14 +931,129 @@ export async function handleDemoRequest(endpoint: string, options: any = {}): Pr
     };
   }
 
-  // 24. GET /devices
-  if (endpoint.startsWith('/devices')) {
+  // 24. Clinical Report Extraction & Validation Mock Handlers
+  if (endpoint.startsWith('/prediction/extract-report')) {
     return {
       success: true,
-      devices: [
-        { id: 'dev-1', name: 'Apple Watch Series 9', deviceType: 'SMARTWATCH', deviceIdentifier: 'DEV-AW9-84920', status: 'ACTIVE', lastSeen: new Date().toISOString() },
-        { id: 'dev-2', name: 'KardiaMobile 6L ECG', deviceType: 'ECG_MONITOR', deviceIdentifier: 'DEV-KM6-10492', status: 'ACTIVE', lastSeen: new Date().toISOString() },
-      ]
+      data: {
+        age: { value: 62, confidence: 98, sourceSnippet: 'Age: 62 years', extracted: true },
+        gender: { value: 'MALE', confidence: 97, sourceSnippet: 'Sex: Male', extracted: true },
+        height: { value: 171, confidence: 95, sourceSnippet: 'Height: 171 cm', extracted: true },
+        weight: { value: 89, confidence: 95, sourceSnippet: 'Weight: 89 kg', extracted: true },
+        bmi: { value: 30.4, confidence: 99, sourceSnippet: 'BMI: 30.4 kg/m2', extracted: true },
+        systolicBP: { value: 158, confidence: 96, sourceSnippet: 'BP: 158/94 mmHg', extracted: true },
+        diastolicBP: { value: 94, confidence: 96, sourceSnippet: 'BP: 158/94 mmHg', extracted: true },
+        cholesterol: { value: 245, confidence: 94, sourceSnippet: 'Total Cholesterol: 245 mg/dL', extracted: true },
+        heartRate: { value: 82, confidence: 95, sourceSnippet: 'Resting Heart Rate: 82 bpm', extracted: true },
+        bloodSugar: { value: 136, confidence: 94, sourceSnippet: 'Fasting Blood Sugar: 136 mg/dL', extracted: true },
+        ecgResult: { value: 'ST_T_ABNORMAL', confidence: 94, sourceSnippet: 'ST-T Wave Abnormality in V4-V6', extracted: true },
+        exerciseFrequency: { value: 1, confidence: 88, sourceSnippet: 'Physical Activity: 1 day/week', extracted: true },
+        smoking: { value: true, confidence: 92, sourceSnippet: 'Active Smoker: Yes', extracted: true },
+        alcohol: { value: true, confidence: 90, sourceSnippet: 'Alcohol: Social drinker', extracted: true },
+        diabetes: { value: true, confidence: 98, sourceSnippet: 'Type 2 Diabetes Mellitus', extracted: true },
+        familyHistory: { value: true, confidence: 92, sourceSnippet: 'Family History of CAD: Positive', extracted: true },
+        chestPainType: { value: 'TYPICAL', confidence: 94, sourceSnippet: 'Typical angina retrosternal pressure', extracted: true },
+        sleepDuration: { value: 6, confidence: 85, sourceSnippet: 'Sleep Duration: 6 hours/night', extracted: true },
+        stressLevel: { value: 7, confidence: 85, sourceSnippet: 'Stress Level: 7/10', extracted: true },
+        documentedOutcome: {
+          eventType: 'MYOCARDIAL_INFARCTION',
+          outcomeDate: '2023-03-12',
+          outcomeSource: 'Discharge Diagnosis, Page 1',
+          eventDescription: 'Acute Anterior Wall Myocardial Infarction (STEMI)',
+          eventDetectedInReport: true,
+        },
+        missingFields: [],
+        rawTextSummary: 'CLINICAL DISCHARGE SUMMARY & CARDIAC EVALUATION (De-identified)',
+      }
+    };
+  }
+
+  if (endpoint.startsWith('/prediction/validate-case')) {
+    return {
+      success: true,
+      case: {
+        id: 'CASE-UPL-001',
+        source: 'UPLOADED_REPORT',
+        reportFileName: 'clinical_discharge_summary.pdf',
+        classification: 'TRUE_POSITIVE',
+        overlapCheck: 'INDEPENDENT_TEST_SET',
+        predictedOutcome: {
+          riskScore: 78.4,
+          riskLevel: 'CRITICAL',
+          primaryPredictionStatement: 'Predicted elevated cardiovascular risk',
+          topContributingFactor: 'Systolic Blood Pressure (158 mmHg)',
+        },
+        actualOutcome: {
+          eventType: 'Myocardial Infarction',
+          documentedEvent: true,
+          actualStatement: 'Documented acute anterior myocardial infarction in historical report',
+        },
+      }
+    };
+  }
+
+  if (endpoint.startsWith('/prediction/validation/metrics')) {
+    return {
+      success: true,
+      metrics: {
+        totalCasesEvaluated: 12,
+        actualEventsCount: 6,
+        noEventsCount: 6,
+        correctPredictionsCount: 10,
+        accuracy: 0.8333,
+        sensitivity: 0.8333,
+        specificity: 0.8333,
+        precision: 0.8333,
+        negativePredictiveValue: 0.8333,
+        f1Score: 0.8333,
+        auroc: 0.8611,
+        confusionMatrix: {
+          truePositives: 5,
+          falsePositives: 1,
+          trueNegatives: 5,
+          falseNegatives: 1,
+        },
+        cases: [
+          {
+            id: 'CASE-HIST-001',
+            source: 'HISTORICAL_COHORT_TEST_SET',
+            demographics: { age: 62, gender: 'MALE', systolicBP: 158, diastolicBP: 94, cholesterol: 265, bmi: 29.8, smoking: true, diabetes: true },
+            predictedOutcome: {
+              riskScore: 78.4,
+              riskLevel: 'CRITICAL',
+              predictedElevatedRisk: true,
+              primaryPredictionStatement: 'Predicted elevated cardiovascular risk',
+              topContributingFactor: 'Systolic Blood Pressure (158 mmHg)',
+            },
+            actualOutcome: {
+              eventType: 'Myocardial Infarction',
+              documentedEvent: true,
+              actualStatement: 'Documented acute anterior myocardial infarction'
+            },
+            classification: 'TRUE_POSITIVE',
+            overlapCheck: 'INDEPENDENT_TEST_SET'
+          },
+          {
+            id: 'CASE-HIST-002',
+            source: 'HISTORICAL_COHORT_TEST_SET',
+            demographics: { age: 34, gender: 'FEMALE', systolicBP: 112, diastolicBP: 72, cholesterol: 168, bmi: 21.5, smoking: false, diabetes: false },
+            predictedOutcome: {
+              riskScore: 8.2,
+              riskLevel: 'LOW',
+              predictedElevatedRisk: false,
+              primaryPredictionStatement: 'Predicted low cardiovascular risk',
+              topContributingFactor: 'Optimal Blood Pressure (112/72 mmHg)',
+            },
+            actualOutcome: {
+              eventType: 'No Event',
+              documentedEvent: false,
+              actualStatement: 'Documented no adverse cardiovascular event at follow-up'
+            },
+            classification: 'TRUE_NEGATIVE',
+            overlapCheck: 'INDEPENDENT_TEST_SET'
+          }
+        ]
+      }
     };
   }
 

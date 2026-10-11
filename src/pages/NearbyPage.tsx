@@ -10,13 +10,15 @@ import NearbyMap from '../components/Nearby/NearbyMap';
 import ApiKeyNotice from '../components/Nearby/ApiKeyNotice';
 import EmergencyBanner from '../components/Nearby/EmergencyBanner';
 import AiRecommendationCard from '../components/Nearby/AiRecommendationCard';
-import { Facility, fetchNearbyFacilities, geocodeLocation, GoogleApiErrorType, getCurrentDeviceLocation } from '../services/googleMapsService';
+import { Facility, fetchNearbyFacilities, geocodeLocation, reverseGeocodeLocation, GoogleApiErrorType, getCurrentDeviceLocation } from '../services/googleMapsService';
 
 export default function NearbyPage() {
   const [coords, setCoords] = useState<[number, number] | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isLocationDetected, setIsLocationDetected] = useState(false);
+  const [locationInput, setLocationInput] = useState<string>('');
+  const [searchError, setSearchError] = useState<string>('');
 
   // Filter States
   const [radius, setRadius] = useState<number>(10); // Default 10km
@@ -43,12 +45,22 @@ export default function NearbyPage() {
   const requestLocation = async () => {
     setGeoLoading(true);
     setPermissionDenied(false);
+    setSearchError('');
     try {
       const loc = await getCurrentDeviceLocation();
       setCoords(loc.coords);
       if (loc.permissionStatus === 'granted') {
         setIsLocationDetected(true);
         setPermissionDenied(false);
+        // Reverse geocode to populate the search input with a human-readable location
+        try {
+          const humanLocation = await reverseGeocodeLocation(loc.coords[0], loc.coords[1]);
+          if (humanLocation) {
+            setLocationInput(humanLocation);
+          }
+        } catch (e) {
+          console.warn('Reverse geocoding error:', e);
+        }
       } else {
         setPermissionDenied(true);
         setIsLocationDetected(false);
@@ -66,21 +78,32 @@ export default function NearbyPage() {
     requestLocation();
   }, []);
 
-  // 2. Manual Location Search Handler with Real Geocoding
-  const handleManualSearch = async (city: string, pincode: string) => {
-    setGeoLoading(true);
-    const searchStr = `${city} ${pincode}`.trim();
-    
-    const geocoded = await geocodeLocation(searchStr);
-    if (geocoded) {
-      setCoords(geocoded);
-      setIsLocationDetected(false);
-    } else {
-      // Fallback coordinate if query cannot be resolved
-      setCoords([28.6139, 77.2090]);
-      setIsLocationDetected(false);
+  // 2. Manual Location Search Handler with Real Geocoding & Validation
+  const handleManualSearch = async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setSearchError('Please enter a location.');
+      return;
     }
-    setGeoLoading(false);
+
+    setGeoLoading(true);
+    setSearchError('');
+
+    try {
+      const geocoded = await geocodeLocation(trimmed);
+      if (geocoded) {
+        setCoords(geocoded);
+        setIsLocationDetected(false);
+        setPermissionDenied(false);
+      } else {
+        setSearchError('Location not found. Try a city, area, or address.');
+      }
+    } catch (err) {
+      console.warn('Manual geocoding error:', err);
+      setSearchError('Location not found. Try a city, area, or address.');
+    } finally {
+      setGeoLoading(false);
+    }
   };
 
   // 3. Fetch Nearby Facilities via Real Google Places API (Debounced)
@@ -167,7 +190,7 @@ export default function NearbyPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6 font-sans">
       {/* Top Banner */}
-      <div className="bg-white p-6 rounded-2xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0 border border-[#c3c5d9] shadow-stitch">
+      <div className="bg-white p-6 rounded-2xl relative overflow-hidden flex flex-col xl:flex-row xl:items-center justify-between gap-6 border border-[#c3c5d9] shadow-stitch">
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <span className="text-[10px] font-mono-data font-bold uppercase tracking-wider text-[#0052ff] bg-[#eff4ff] px-2.5 py-0.5 rounded-full border border-[#0052ff]/30">
@@ -179,17 +202,21 @@ export default function NearbyPage() {
           <h2 className="text-xl font-geist font-bold text-[#0b1c30] tracking-tight">
             Geolocated Cardiac Clinics & ER Units
           </h2>
-          <p className="text-xs font-inter text-[#434656] max-w-2xl">
+          <p className="text-xs font-inter text-[#434656] max-w-xl">
             Locate verified cardiac care units, catheterization labs, and emergency rooms with real Google Places rating scores and live directions.
           </p>
         </div>
 
         {/* Right Search Input Box */}
-        <div className="w-full md:w-80 shrink-0">
+        <div className="w-full xl:max-w-xl shrink-0">
           <SearchBar
+            value={locationInput}
+            onChange={setLocationInput}
             onSearch={handleManualSearch}
             onRequestGeolocation={requestLocation}
             isLoading={geoLoading}
+            errorMessage={searchError}
+            onClearError={() => setSearchError('')}
           />
         </div>
       </div>
@@ -277,7 +304,10 @@ export default function NearbyPage() {
               requestLocation={requestLocation}
               geoLoading={geoLoading}
               permissionDenied={permissionDenied}
-              onUseManualSearch={() => handleManualSearch('New Delhi', '110001')}
+              onUseManualSearch={() => {
+                setLocationInput('New Delhi');
+                handleManualSearch('New Delhi');
+              }}
             />
           ) : (
             <div className="flex flex-col items-center space-y-4 p-8 glass-panel bg-white/80 border border-slate-200/80 rounded-2xl max-w-sm shadow-sm">

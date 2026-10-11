@@ -105,10 +105,10 @@ export default function DoctorPortalPage() {
   ];
 
   return (
-    <div className="glass-panel rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-140px)] min-h-[550px] overflow-hidden relative">
+    <div className="glass-panel rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col lg:flex-row h-auto min-h-[550px] relative">
       
       {/* Patient Directory Sidebar */}
-      <div className="w-full lg:w-72 border-r border-slate-200/80 p-4 bg-slate-50 h-auto lg:h-full flex flex-col shrink-0">
+      <div className="w-full lg:w-72 border-r border-slate-200/80 p-4 bg-slate-50 h-auto flex flex-col shrink-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-120px)]">
         <div className="px-3 py-2.5 border-b border-slate-200/80 mb-4 shrink-0">
           <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center justify-between">
             <span>Patient Queue ({sortedPatients.length})</span>
@@ -121,7 +121,7 @@ export default function DoctorPortalPage() {
             <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
           </div>
         ) : (
-          <div className="max-h-64 lg:max-h-none lg:flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+          <div className="max-h-64 lg:max-h-[calc(100vh-220px)] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
             {sortedPatients.map((pat: any) => {
               const latestPred = pat.predictions[0];
               const isHigh = latestPred?.riskLevel === 'HIGH';
@@ -153,7 +153,7 @@ export default function DoctorPortalPage() {
       </div>
 
       {/* Patient review screen */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white/40 h-full overflow-y-auto scrollbar-thin">
+      <div className="flex-1 flex flex-col min-w-0 bg-white/40 h-auto">
         {!selectedPatientId ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
             <User className="h-10 w-10 text-blue-500 animate-pulse" />
@@ -210,7 +210,7 @@ export default function DoctorPortalPage() {
             </div>
 
             {/* Grid 2-Column: Bubble chart & Heatmap */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
               
               {/* Bubble Chart */}
               <div className="glass-panel p-5 rounded-2xl h-[280px] flex flex-col justify-between border border-slate-200/80 bg-white/80 shadow-sm">
@@ -265,7 +265,7 @@ export default function DoctorPortalPage() {
             </div>
 
             {/* Grid 2-Column: Hospital Capacity & Follow-up Calendar */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
               
               {/* Capacity indicators */}
               <div className="glass-panel p-5 rounded-2xl flex flex-col justify-between border border-slate-200/80 bg-white/80 shadow-sm">

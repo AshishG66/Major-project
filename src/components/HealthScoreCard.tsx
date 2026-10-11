@@ -20,10 +20,10 @@ const HealthScoreCard = ({ dashLoading = false, simulatedScore, displayScore }: 
   const strokeColor = targetHealthScore >= 75 ? '#10B981' : targetHealthScore >= 50 ? '#F59E0B' : '#EF4444';
 
   return (
-    <div className="glass-panel p-6 rounded-2xl flex flex-col items-center justify-center text-center relative overflow-hidden bg-white/80 border border-slate-200/80 shadow-sm h-[320px]">
+    <div className="glass-panel p-5 rounded-2xl flex flex-col items-center justify-center text-center relative overflow-hidden bg-white/80 border border-slate-200/80 shadow-sm h-auto min-h-0">
       <span className="absolute top-3 left-3 text-[9px] uppercase font-bold text-slate-500 tracking-wider">Stability Index</span>
       
-      <div className="relative h-36 w-36 flex items-center justify-center my-3">
+      <div className="relative h-32 w-32 flex items-center justify-center my-2">
         <svg className="w-full h-full transform -rotate-90 pointer-events-none" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="44" stroke="#E2E8F0" strokeWidth="6" fill="transparent" />
           <circle

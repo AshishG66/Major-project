@@ -12,6 +12,8 @@ import RiskGaugeCard from '../components/RiskGaugeCard';
 import AISummaryCard from '../components/AISummaryCard';
 import TimelineCard from '../components/TimelineCard';
 import RemindersCard from '../components/RemindersCard';
+import DigitalTwinStatusPanel from '../components/DigitalTwinStatusPanel';
+import { useDigitalTwinStore } from '../store/digitalTwinStore';
 
 // Error Boundary wrapper
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -115,6 +117,13 @@ export default function DashboardPage() {
       setSimStress(latestScan.stressLevel || 5);
       setSimExercise(latestScan.exerciseFrequency || 3);
       setSimSleep(latestScan.sleepDuration || 7.0);
+
+      // Patient Isolation & Digital Twin Sync:
+      const activePred = dash?.predictions?.[0] || pHistory[0];
+      if (activePred) {
+        usePredictionStore.getState().setLatestPrediction(activePred);
+        useDigitalTwinStore.getState().setSimulationFromPrediction(activePred);
+      }
     }
   }, [dash, historyRes]);
 
@@ -347,6 +356,7 @@ export default function DashboardPage() {
   const activeSmoking = activeFactors.smoking || false;
   const activeAge = activeFactors.age || 45;
   const shapExplanation = dash?.predictions?.[0]?.shapExplanation || history[0]?.shapExplanation || [];
+  const simulationState = useDigitalTwinStore((s) => s.simulationState);
 
   return (
     <div className="space-y-6 relative">
@@ -358,129 +368,26 @@ export default function DashboardPage() {
       {/* Global Floating AI Health Assistant Panel */}
       <AIHealthAssistant />
 
-      {/* ROW 1 & 2: Health Score, 3D Heart centerpiece, Risk Gauge, ECG, AI Summary */}
+      {/* ROW 1: CLINICAL TELEMETRY (LEFT) & 3D DIGITAL HEART + LIVE ECG (RIGHT) */}
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
+        className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start"
       >
-        {/* Left Column: Health Score & ECG */}
-        <motion.div variants={itemVariants} className="flex flex-col gap-6">
-          <HealthScoreCard
-            dashLoading={dashLoading}
-            simulatedScore={displayHealthScore}
-            displayScore={displayScore}
-          />
-
-          <LiveECGCard
-            historyLoading={historyLoading}
-            simulatedHR={simulatedHR}
-          />
-        </motion.div>
-
-        {/* Center Column: 3D Heart Digital Twin */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white p-6 rounded-2xl flex flex-col items-center justify-between text-center relative overflow-hidden min-h-[560px] lg:min-h-[620px] border border-[#c3c5d9] shadow-stitch group"
-        >
-          {/* Glass reflection gradient */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/20 pointer-events-none" />
-
-          <div className="w-full flex items-center justify-between z-10 border-b border-[#e5eeff] pb-3">
-            <span className="text-[10px] font-mono-data font-bold text-[#0052ff] uppercase tracking-wider flex items-center gap-1.5">
-              <Heart className="h-3.5 w-3.5 text-[#ba1a1a] animate-pulse" />
-              <span>3D Digital Twin Command HUD</span>
-            </span>
-
-            {/* Dynamic Risk Status Badge HUD */}
-            <span className={`text-[9px] font-mono-data font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border flex items-center gap-1.5 shadow-xs ${
-              activeRiskLevel === 'CRITICAL'
-                ? 'bg-[#ffdad6] text-[#93000a] border-[#ba1a1a]/30 animate-pulse'
-                : activeRiskLevel === 'HIGH'
-                ? 'bg-[#fffbeb] text-[#92400e] border-[#f59e0b]/30'
-                : activeRiskLevel === 'MODERATE'
-                ? 'bg-[#fffbeb] text-[#d97706] border-[#f59e0b]/30'
-                : 'bg-[#eff4ff] text-[#005a3c] border-[#10b981]/30'
-            }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${
-                activeRiskLevel === 'CRITICAL' ? 'bg-[#ba1a1a] animate-ping' : activeRiskLevel === 'HIGH' ? 'bg-[#f59e0b]' : activeRiskLevel === 'MODERATE' ? 'bg-[#f59e0b]' : 'bg-[#10b981]'
-              }`} />
-              <span>{activeRiskLevel} RISK TWIN</span>
-            </span>
-          </div>
-          
-          <div className="w-full flex-1 relative z-0 flex items-center justify-center mx-auto my-auto min-h-[420px]">
-            <Suspense fallback={
-              <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
-                <Loader2 className="h-10 w-10 text-[#0052ff] animate-spin" />
-                <p className="text-[10px] font-mono-data text-[#737688] uppercase font-bold tracking-widest">Loading 3D Anatomy Model...</p>
-              </div>
-            }>
-              <ThreeHeart
-                heartRate={simulatedHR}
-                riskLevel={activeRiskLevel}
-                riskScore={activeRiskScore}
-                systolicBP={activeSystolic}
-                diastolicBP={activeDiastolic}
-                cholesterol={activeChol}
-                bmi={activeBmi}
-                bloodSugar={activeSugar}
-                smoking={activeSmoking}
-                age={activeAge}
-                shapFactors={shapExplanation}
-                glowIntensity={glowIntensity}
-                onHoverPart={setHoveredHeartPart}
-              />
-            </Suspense>
-          </div>
-
-          <div className="w-full relative z-10 px-2 min-h-[50px] flex flex-col justify-center border-t border-[#e5eeff] pt-3">
-            <AnimatePresence mode="wait">
-              {hoveredHeartPart ? (
-                <motion.div
-                  key={hoveredHeartPart}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  className="p-2.5 rounded-xl bg-[#eff4ff] border border-[#0052ff]/30 text-[10px] font-mono-data text-[#003ec7] flex items-start space-x-1.5 justify-center leading-relaxed shadow-xs"
-                >
-                  <span>{getHeartPartExplanation(hoveredHeartPart)}</span>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="default-rhythm"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="space-y-0.5 text-center"
-                >
-                  <div className="flex items-center justify-center gap-3 text-xs font-mono-data font-bold text-[#0b1c30] tracking-wide">
-                    <span>{simulatedHR} BPM</span>
-                    <span className="text-[#c3c5d9]">•</span>
-                    <span>BP: {activeSystolic}/{activeDiastolic} mmHg</span>
-                    <span className="text-[#c3c5d9]">•</span>
-                    <span>Chol: {activeChol} mg/dL</span>
-                  </div>
-                  <span className="text-[9px] font-mono-data uppercase tracking-widest text-[#737688] font-bold block mt-0.5">
-                    {simulatedHR >= 100 ? 'Tachycardia / Elevated Rhythm' : simulatedHR <= 55 ? 'Bradycardia / Slow Rhythm' : 'Normal Sinus Rhythm'}
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <span className="text-[8px] font-mono-data text-[#737688] uppercase font-semibold pointer-events-none z-10 mt-1">
-            Hover components to isolate chambers & vessels • Drag to rotate • Scroll to zoom
-          </span>
-        </motion.div>
-
-        {/* Right Column: Risk Gauge & AI Summary */}
-        <motion.div variants={itemVariants} className="flex flex-col gap-6">
+        {/* LEFT COLUMN (5 COLS): Dynamic System Biometrics & Clinical Telemetry */}
+        <motion.div variants={itemVariants} className="col-span-1 lg:col-span-5 flex flex-col gap-4">
           <RiskGaugeCard
             dashLoading={dashLoading}
             simulatedScore={simulatedScore}
             simulatedRisk={simulatedRisk}
             needleAngle={needleAngle}
+          />
+
+          <HealthScoreCard
+            dashLoading={dashLoading}
+            simulatedScore={displayHealthScore}
+            displayScore={displayScore}
           />
 
           <AISummaryCard
@@ -489,22 +396,143 @@ export default function DashboardPage() {
           />
         </motion.div>
 
+        {/* RIGHT COLUMN (7 COLS): 3D Digital Twin Command HUD & Live Synchronized ECG */}
+        <motion.div variants={itemVariants} className="col-span-1 lg:col-span-7 flex flex-col gap-4">
+          {/* 3D Heart Card with Controlled, Deliberate Dimensions */}
+          <div className="bg-white p-5 rounded-2xl flex flex-col items-center justify-between text-center relative overflow-hidden border border-[#c3c5d9] shadow-stitch group">
+            {/* Glass reflection gradient */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/20 pointer-events-none" />
+
+            <div className="w-full flex items-center justify-between z-10 border-b border-[#e5eeff] pb-2.5">
+              <span className="text-[10px] font-mono-data font-bold text-[#0052ff] uppercase tracking-wider flex items-center gap-1.5">
+                <Heart className="h-3.5 w-3.5 text-[#ba1a1a] animate-pulse" />
+                <span>3D Digital Twin Command HUD</span>
+              </span>
+
+              {/* Dynamic Risk Status Badge HUD */}
+              <span className={`text-[9px] font-mono-data font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-xs ${
+                activeRiskLevel === 'CRITICAL'
+                  ? 'bg-[#ffdad6] text-[#93000a] border-[#ba1a1a]/30 animate-pulse'
+                  : activeRiskLevel === 'HIGH'
+                  ? 'bg-[#fffbeb] text-[#92400e] border-[#f59e0b]/30'
+                  : activeRiskLevel === 'MODERATE'
+                  ? 'bg-[#fffbeb] text-[#d97706] border-[#f59e0b]/30'
+                  : 'bg-[#eff4ff] text-[#005a3c] border-[#10b981]/30'
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${
+                  activeRiskLevel === 'CRITICAL' ? 'bg-[#ba1a1a] animate-ping' : activeRiskLevel === 'HIGH' ? 'bg-[#f59e0b]' : activeRiskLevel === 'MODERATE' ? 'bg-[#f59e0b]' : 'bg-[#10b981]'
+                }`} />
+                <span>{activeRiskLevel} RISK TWIN</span>
+              </span>
+            </div>
+            
+            {/* Centerpiece 3D Canvas Area: Deliberate, controlled height without huge empty space */}
+            <div className="w-full relative z-0 flex items-center justify-center mx-auto my-auto h-[300px] lg:h-[320px]">
+              <Suspense fallback={
+                <div className="w-full h-full flex flex-col items-center justify-center space-y-3">
+                  <Loader2 className="h-8 w-8 text-[#0052ff] animate-spin" />
+                  <p className="text-[10px] font-mono-data text-[#737688] uppercase font-bold tracking-widest">Loading 3D Anatomy Model...</p>
+                </div>
+              }>
+                <ThreeHeart
+                  simulationState={simulationState}
+                  heartRate={simulatedHR}
+                  riskLevel={activeRiskLevel}
+                  riskScore={activeRiskScore}
+                  systolicBP={activeSystolic}
+                  diastolicBP={activeDiastolic}
+                  cholesterol={activeChol}
+                  bmi={activeBmi}
+                  bloodSugar={activeSugar}
+                  smoking={activeSmoking}
+                  age={activeAge}
+                  shapFactors={shapExplanation}
+                  glowIntensity={glowIntensity}
+                  onHoverPart={setHoveredHeartPart}
+                />
+              </Suspense>
+            </div>
+
+            <div className="w-full relative z-10 px-2 min-h-[40px] flex flex-col justify-center border-t border-[#e5eeff] pt-2">
+              <AnimatePresence mode="wait">
+                {hoveredHeartPart ? (
+                  <motion.div
+                    key={hoveredHeartPart}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="p-1.5 rounded-xl bg-[#eff4ff] border border-[#0052ff]/30 text-[10px] font-mono-data text-[#003ec7] flex items-start space-x-1.5 justify-center leading-relaxed shadow-xs"
+                  >
+                    <span>{getHeartPartExplanation(hoveredHeartPart)}</span>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="default-rhythm"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="space-y-0.5 text-center"
+                  >
+                    <div className="flex items-center justify-center gap-3 text-xs font-mono-data font-bold text-[#0b1c30] tracking-wide">
+                      <span>{simulatedHR} BPM</span>
+                      <span className="text-[#c3c5d9]">•</span>
+                      <span>BP: {activeSystolic}/{activeDiastolic} mmHg</span>
+                      <span className="text-[#c3c5d9]">•</span>
+                      <span>Chol: {activeChol} mg/dL</span>
+                    </div>
+                    <span className="text-[9px] font-mono-data uppercase tracking-widest text-[#737688] font-bold block mt-0.5">
+                      {simulatedHR >= 100 ? 'Tachycardia / Elevated Rhythm' : simulatedHR <= 55 ? 'Bradycardia / Slow Rhythm' : 'Normal Sinus Rhythm'}
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <span className="text-[8px] font-mono-data text-[#737688] uppercase font-semibold pointer-events-none z-10 mt-1">
+              Hover components to isolate chambers & vessels • Drag to rotate
+            </span>
+          </div>
+
+          {/* Synchronized ECG Waveform Card sitting snug under 3D Heart */}
+          <LiveECGCard
+            historyLoading={historyLoading}
+            simulatedHR={simulatedHR}
+          />
+        </motion.div>
       </motion.div>
 
-      {/* ROW 3: Timeline & Reminders (Split 2-Column Grid) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <TimelineCard
-          historyLoading={historyLoading}
-          displayHistory={displayHistory}
-        />
+      {/* ROW 2: DIGITAL TWIN SIMULATION STATE & CLINICAL RATIONALE (FULL WIDTH) */}
+      <motion.div
+        variants={itemVariants}
+        initial="hidden"
+        animate="visible"
+        className="w-full"
+      >
+        <DigitalTwinStatusPanel />
+      </motion.div>
 
-        <RemindersCard
-          remindersLoading={remindersLoading}
-          reminders={reminders}
-          onAddClick={onAddReminderClick}
-          onDeleteClick={onDeleteReminderClick}
-        />
-      </div>
+      {/* ROW 3: PATIENT SCAN HISTORY & CLINICAL REMINDERS (12-COL GRID) */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start"
+      >
+        <motion.div variants={itemVariants} className="col-span-1 lg:col-span-8">
+          <TimelineCard
+            historyLoading={historyLoading}
+            displayHistory={displayHistory}
+          />
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="col-span-1 lg:col-span-4">
+          <RemindersCard
+            remindersLoading={remindersLoading}
+            reminders={reminders}
+            onAddClick={onAddReminderClick}
+            onDeleteClick={onDeleteReminderClick}
+          />
+        </motion.div>
+      </motion.div>
 
       {/* ROW 3.5: AI DIGITAL TWIN PLATFORM SUITE */}
       <div className="border-t border-slate-200/80 pt-6 mt-6">
@@ -516,6 +544,7 @@ export default function DashboardPage() {
         }>
           <ErrorBoundary>
             <DigitalTwinSuite
+              show3DHeart={false}
               heartRate={simulatedHR}
               riskLevel={activeRiskLevel}
               riskScore={activeRiskScore}

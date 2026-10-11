@@ -36,6 +36,7 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
     const duration = 1200;
     const startTime = performance.now();
 
+    let rafId: number;
     const animate = (now: number) => {
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / duration);
@@ -43,11 +44,14 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
       const current = Math.round(start + (end - start) * easeOut);
       setDisplayScore(current);
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        rafId = requestAnimationFrame(animate);
       }
     };
 
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animate);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [clampedScore, isUnscanned]);
 
   // Target rotation angle from -90deg (0%) to +90deg (100%)
@@ -75,7 +79,7 @@ const RiskGaugeCard = ({ dashLoading, simulatedScore, simulatedRisk }: RiskGauge
     <motion.div
       whileHover={{ y: -4, boxShadow: '0px 8px 30px rgba(0, 82, 204, 0.08)' }}
       transition={{ duration: 0.3 }}
-      className="bg-white p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden border border-[#c3c5d9] shadow-stitch min-h-[380px] group font-sans"
+      className="bg-white p-5 rounded-2xl flex flex-col justify-between relative overflow-hidden border border-[#c3c5d9] shadow-stitch h-auto min-h-0 group font-sans"
     >
       {/* Glass Reflection Accent */}
       <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/20 pointer-events-none" />

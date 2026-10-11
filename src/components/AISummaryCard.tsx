@@ -8,7 +8,7 @@ interface AISummaryCardProps {
 
 const AISummaryCard = ({ dashLoading, weeklyAISummary }: AISummaryCardProps) => {
   return (
-    <div className="glass-panel p-5 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col justify-between h-[320px]">
+    <div className="glass-panel p-5 rounded-2xl border border-slate-200/80 bg-white/80 shadow-sm flex flex-col justify-between h-auto min-h-0 space-y-3">
       <div>
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3.5">
           <span className="text-[9px] uppercase font-bold text-blue-600 tracking-wider flex items-center gap-1.5">

@@ -1,0 +1,149 @@
+{
+  "audit_phase": "Phase 2: ML Prediction Integrity Baseline Snapshot",
+  "branch": "feature/ml-prediction-integrity",
+  "timestamp": "2026-10-11T10:25:00Z",
+  "datasets": {
+    "cardiovascular_disease_kaggle.csv": {
+      "sha256": "d07859399334f6a53d7b5593b8904cea91733e16a55a80d7ddb3e4050fda67da",
+      "size_bytes": 541030,
+      "shape": [
+        5000,
+        13
+      ],
+      "columns": [
+        "age",
+        "gender",
+        "height",
+        "weight",
+        "bmi",
+        "ap_hi",
+        "ap_lo",
+        "cholesterol",
+        "gluc",
+        "smoke",
+        "alco",
+        "active",
+        "cardio"
+      ]
+    },
+    "framingham_heart_study.csv": {
+      "sha256": "f3f4b1243f66dc4dbbe16fefed37d79d4dcdd58264fa50d13930f4c796a77395",
+      "size_bytes": 385574,
+      "shape": [
+        3000,
+        15
+      ],
+      "columns": [
+        "age",
+        "male",
+        "currentSmoker",
+        "cigsPerDay",
+        "BPMeds",
+        "prevalentStroke",
+        "prevalentHyp",
+        "diabetes",
+        "totChol",
+        "sysBP",
+        "diaBP",
+        "BMI",
+        "heartRate",
+        "glucose",
+        "TenYearCHD"
+      ]
+    },
+    "heart_failure_clinical_records.csv": {
+      "sha256": "5da90d9ea6d806795543366bf42396f07efdff053a20e9d065183d253a008349",
+      "size_bytes": 301983,
+      "shape": [
+        2500,
+        13
+      ],
+      "columns": [
+        "age",
+        "anaemia",
+        "creatinine_phosphokinase",
+        "diabetes",
+        "ejection_fraction",
+        "high_blood_pressure",
+        "platelets",
+        "serum_creatinine",
+        "serum_sodium",
+        "sex",
+        "smoking",
+        "time",
+        "DEATH_EVENT"
+      ]
+    },
+    "physionet_ecg_features.csv": {
+      "sha256": "820ece5f164bb85203094e3961a79e7fa37fb851df72bd15d1b22bb28a60f813",
+      "size_bytes": 450905,
+      "shape": [
+        3000,
+        9
+      ],
+      "columns": [
+        "rr_interval",
+        "heart_rate",
+        "pr_interval",
+        "qrs_duration",
+        "qt_interval",
+        "st_elevation",
+        "p_wave_amp",
+        "t_wave_amp",
+        "ecg_arrhythmia"
+      ]
+    },
+    "stroke_prediction_dataset.csv": {
+      "sha256": "89bd8f865d767cf0a32d73f6607689dc2b02ec2b344dd63ebbcbd1ce4e8b43f7",
+      "size_bytes": 319309,
+      "shape": [
+        3500,
+        11
+      ],
+      "columns": [
+        "age",
+        "gender",
+        "hypertension",
+        "heart_disease",
+        "ever_married",
+        "work_type",
+        "Residence_type",
+        "avg_glucose_level",
+        "bmi",
+        "smoking_status",
+        "stroke"
+      ]
+    }
+  },
+  "model_artifacts": {
+    "cardio_lifestyle_model.joblib": {
+      "sha256": "58f4990a7a57f2446eec0455f0631f3e80533af5ece54dd0e9044582fc88cf18",
+      "size_bytes": 80418
+    },
+    "ecg_arrhythmia_model.joblib": {
+      "sha256": "a7f828fb9d08e678baa8ce7941a5208f96f0c00a62b59e9815001abc36c9808d",
+      "size_bytes": 732290
+    },
+    "framingham_risk_model.joblib": {
+      "sha256": "992158b8f9afb5c7e3d621b93f260eef7318802fce1e6fc6870b74216bb38ac0",
+      "size_bytes": 351954
+    },
+    "heart_failure_model.joblib": {
+      "sha256": "d850ac033659c8550d95e3e375df61973ed29cacc35817e01c74013990fe8f22",
+      "size_bytes": 353202
+    },
+    "heart_risk_model.joblib": {
+      "sha256": "992158b8f9afb5c7e3d621b93f260eef7318802fce1e6fc6870b74216bb38ac0",
+      "size_bytes": 351954
+    },
+    "stroke_model.joblib": {
+      "sha256": "0ef2c347c4c1923b961d3276a1dca72ab950a12a62ab810fb03b0565ff26bc64",
+      "size_bytes": 161746
+    }
+  },
+  "policy": {
+    "production_model_artifacts_preserved": true,
+    "no_render_deployments": true,
+    "phase1_security_remediation_preserved": true
+  }
+}

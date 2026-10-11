@@ -16,16 +16,20 @@ export const authenticate = (
   res: Response,
   next: NextFunction
 ) => {
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query?.token && typeof req.query.token === 'string') {
+    token = req.query.token;
+  }
   
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!token) {
     return res.status(401).json({
       success: false,
       message: 'Access denied. No token provided.',
     });
   }
-
-  const token = authHeader.split(' ')[1];
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as {
@@ -34,17 +38,16 @@ export const authenticate = (
       role: string;
     };
     
+    if (!decoded || !decoded.id || !decoded.role) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or malformed token.',
+      });
+    }
+    
     (req as AuthRequest).user = decoded;
     next();
   } catch (error) {
-    if (token === 'demo-token-123') {
-      (req as AuthRequest).user = {
-        id: 'demo-patient-amit',
-        email: 'amit.sharma@demo.com',
-        role: 'ADMIN',
-      };
-      return next();
-    }
     return res.status(401).json({
       success: false,
       message: 'Invalid or expired token.',

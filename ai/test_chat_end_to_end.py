@@ -2,10 +2,22 @@ import time
 import json
 import urllib.request
 
+import os
+
 server_url = "http://127.0.0.1:5000/api"
+
+def get_auth_token():
+    try:
+        import jwt
+        secret = os.environ.get("JWT_SECRET", "hridaya-development-secret-key-change-in-production")
+        return jwt.encode({"id": "ai-test-user", "role": "USER"}, secret, algorithm="HS256")
+    except Exception:
+        return os.environ.get("TEST_JWT_TOKEN", "")
+
+auth_token = get_auth_token()
 headers = {
     "Content-Type": "application/json",
-    "Authorization": "Bearer demo-token-123"
+    "Authorization": f"Bearer {auth_token}" if auth_token else ""
 }
 
 prompts = [

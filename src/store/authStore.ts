@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { usePredictionStore } from './predictionStore';
 
 interface User {
   id: string;
@@ -43,6 +44,14 @@ export const useAuthStore = create<AuthState>((set) => {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      try {
+        localStorage.removeItem('latest_scan_result');
+        localStorage.removeItem('hridya_latest_prediction');
+        localStorage.removeItem('hridya_prediction_history');
+        localStorage.removeItem('hridya_digital_twin_state');
+        localStorage.removeItem('hridya_demo_scenario');
+        usePredictionStore.getState().resetPredictionStore();
+      } catch {}
       set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
     },
     
