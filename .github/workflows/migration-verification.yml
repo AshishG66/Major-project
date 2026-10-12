@@ -10,6 +10,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   postgres-migration-proof:
     name: Disposable PostgreSQL 16 + pgvector Migration Replay
