@@ -32,6 +32,7 @@ import modelsRouter from './models/models.router.js';
 import devicesRouter from './devices/devices.router.js';
 import simulationRouter from './simulation/simulation.router.js';
 import analyticsRouter from './analytics/analytics.router.js';
+import doctorRouter from './routes/doctor.router.js';
 import { createAuditLogEntry } from './services/hashChainService.js';
 
 const app = express();
@@ -56,7 +57,7 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // 3. Allow explicit configured frontend URL(s)
+    // 3. Allow explicitly configured frontend URL(s)
     if (process.env.FRONTEND_URL) {
       const allowedFrontends = process.env.FRONTEND_URL.split(',').map(s => s.trim());
       if (allowedFrontends.includes(origin)) {
@@ -64,19 +65,23 @@ app.use(cors({
       }
     }
 
-    // 4. Allow local network during development or production deployment domains
-    if (origin.startsWith('http://192.168.') || 
-        origin.startsWith('http://172.') || 
-        origin.startsWith('http://10.') ||
-        origin.includes('onrender.com') ||
-        origin.includes('up.railway.app') ||
-        origin.includes('vercel.app') ||
-        origin.includes('hridayadarpana')) {
-      return callback(null, true);
+    // 4. In development, allow local private networks
+    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+      if (origin.startsWith('http://192.168.') || 
+          origin.startsWith('http://172.') || 
+          origin.startsWith('http://10.')) {
+        return callback(null, true);
+      }
     }
 
-    // Default fallback: allow and log
-    callback(null, true);
+    // 5. In production: strictly reject unapproved origins
+    if (process.env.NODE_ENV === 'production') {
+      logger.warn(`[CORS Blocked] Unauthorized origin attempted connection: ${origin}`);
+      return callback(new Error(`CORS blocked: Origin ${origin} not permitted`));
+    }
+
+    // Fallback in non-production
+    callback(null, false);
   },
   credentials: true,
 }));
@@ -115,6 +120,7 @@ app.use('/api/models', modelsRouter);
 app.use('/api/devices', devicesRouter);
 app.use('/api/risk/simulate', simulationRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/doctor', doctorRouter);
 
 // 1. LIFESTYLE LOGGING & ACHIEVEMENTS ENGINE
 app.post('/api/lifestyle', authenticate, async (req, res) => {
@@ -328,191 +334,8 @@ app.get('/api/badges', authenticate, async (req, res) => {
   }
 });
 
-// 5. DOCTOR PORTAL & NOTES API
-app.post('/api/doctor/note', authenticate, async (req, res) => {
-  try {
-    const caller = (req as AuthRequest).user;
-    if (!caller) {
-      return res.status(401).json({ success: false, message: 'Access denied. Authentication required.' });
-    }
-
-    if (caller.role !== 'DOCTOR' && caller.role !== 'ADMIN') {
-      return res.status(403).json({ success: false, message: 'Forbidden. Access restricted to licensed medical professionals.' });
-    }
-
-    const { patientId, note } = req.body;
-    if (!patientId || typeof patientId !== 'string' || !note || typeof note !== 'string' || !note.trim()) {
-      return res.status(400).json({ success: false, message: 'Patient ID and clinical note content are required.' });
-    }
-
-    const patient = await prisma.user.findUnique({
-      where: { id: patientId },
-      select: { id: true, role: true }
-    });
-
-    if (!patient || patient.role !== 'USER') {
-      return res.status(404).json({ success: false, message: 'Patient not found.' });
-    }
-
-    const doctorNote = await prisma.doctorNote.create({
-      data: {
-        doctorId: caller.id,
-        patientId,
-        note: note.trim(),
-      },
-      include: {
-        doctor: {
-          include: { profile: true }
-        }
-      }
-    });
-
-    await createAuditLogEntry({
-      userId: caller.id,
-      patientId,
-      eventType: 'CLINICAL_NOTE_CREATED',
-      action: 'DOCTOR_WRITE_NOTE',
-      details: `Clinical note created by doctor ${caller.id} for patient ${patientId}`,
-      ipAddress: req.ip,
-    }).catch((err: any) => logger.warn(`Failed to audit note creation: ${err.message}`));
-
-    res.status(201).json({ success: true, doctorNote });
-  } catch (error: any) {
-    logger.error(`Error authoring doctor note: ${error.message}`);
-    res.status(500).json({ success: false, message: 'Internal server error.' });
-  }
-});
-
-app.get('/api/doctor/notes/:patientId', authenticate, async (req, res) => {
-  try {
-    const caller = (req as AuthRequest).user;
-    if (!caller) {
-      return res.status(401).json({ success: false, message: 'Access denied. Authentication required.' });
-    }
-
-    const { patientId } = req.params;
-    if (!patientId || typeof patientId !== 'string') {
-      return res.status(400).json({ success: false, message: 'Invalid patient identifier.' });
-    }
-
-    // Role-based authorization & patient-level boundary enforcement
-    if (caller.role === 'USER') {
-      // Ordinary patient: strictly prohibited from viewing any other patient's notes
-      if (caller.id !== patientId) {
-        return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' });
-      }
-
-      const notes = await prisma.doctorNote.findMany({
-        where: { patientId },
-        orderBy: { createdAt: 'desc' },
-        include: { doctor: { include: { profile: true } } }
-      });
-      return res.status(200).json({ success: true, notes });
-    }
-
-    if (caller.role === 'DOCTOR') {
-      // Enforce assigned-doctor authorization:
-      // A doctor may access notes only for patients actively assigned to or treated by that doctor.
-      const hasClinicalRelationship = await prisma.doctorNote.findFirst({
-        where: {
-          patientId: patientId,
-          doctorId: caller.id,
-        },
-      });
-
-      if (!hasClinicalRelationship) {
-        // Return uniform 403 without revealing whether patientId exists in database
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied. You are not authorized to access clinical records for this patient.',
-        });
-      }
-
-      const notes = await prisma.doctorNote.findMany({
-        where: { patientId },
-        orderBy: { createdAt: 'desc' },
-        include: { doctor: { include: { profile: true } } }
-      });
-      return res.status(200).json({ success: true, notes });
-    }
-
-    if (caller.role === 'ADMIN') {
-      // Administrative Authorization Policy:
-      // Administrators may access clinical notes strictly for clinical audit, quality assurance,
-      // and medico-legal compliance. Every administrative access is immutably logged to AuditLog.
-      const patient = await prisma.user.findUnique({
-        where: { id: patientId },
-        select: { id: true, role: true },
-      });
-
-      if (!patient || patient.role !== 'USER') {
-        return res.status(404).json({ success: false, message: 'Patient record not found.' });
-      }
-
-      await createAuditLogEntry({
-        userId: caller.id,
-        patientId: patientId,
-        eventType: 'CLINICAL_NOTE_AUDIT_ACCESS',
-        action: 'ADMIN_READ_PATIENT_NOTES',
-        details: `Administrator ${caller.id} accessed clinical notes for patient ${patientId} under institutional audit policy.`,
-        ipAddress: req.ip,
-      }).catch((err: any) => logger.warn(`Failed to audit admin note access: ${err.message}`));
-
-      const notes = await prisma.doctorNote.findMany({
-        where: { patientId },
-        orderBy: { createdAt: 'desc' },
-        include: { doctor: { include: { profile: true } } }
-      });
-
-      return res.status(200).json({
-        success: true,
-        auditNotice: 'Administrative clinical audit access logged.',
-        notes,
-      });
-    }
-
-    return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' });
-  } catch (error: any) {
-    logger.error(`Error retrieving doctor notes: ${error.message}`);
-    res.status(500).json({ success: false, message: 'Internal server error.' });
-  }
-});
-
-app.get('/api/doctor/patients', authenticate, async (req, res) => {
-  try {
-    const caller = (req as AuthRequest).user;
-    if (!caller) {
-      return res.status(401).json({ success: false, message: 'Access denied. Authentication required.' });
-    }
-
-    if (caller.role !== 'DOCTOR' && caller.role !== 'ADMIN') {
-      return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' });
-    }
-
-    // Role-specific patient scoping:
-    // Administrators view system-wide patient registry for population statistics.
-    // Doctors view only patients assigned to them or whom they are actively treating.
-    const whereClause: any = { role: 'USER' };
-    if (caller.role === 'DOCTOR') {
-      whereClause.doctorNotes = {
-        some: { doctorId: caller.id }
-      };
-    }
-
-    const patients = await prisma.user.findMany({
-      where: whereClause,
-      include: {
-        profile: true,
-        predictions: { take: 1, orderBy: { createdAt: 'desc' } }
-      }
-    });
-
-    res.status(200).json({ success: true, patients });
-  } catch (error: any) {
-    logger.error(`Error retrieving patients list: ${error.message}`);
-    res.status(500).json({ success: false, message: 'Internal server error.' });
-  }
-});
+// 5. DOCTOR PORTAL & NOTES API: Modularized and protected by doctorRouter mounted at /api/doctor
+// Enforces explicit DoctorPatientAssignment verification, assignment creation, and revocation.
 
 // 6. ADMIN PORTAL AUDITS & STATS API
 app.get('/api/admin/stats', authenticate, async (req, res) => {
@@ -729,7 +552,7 @@ app.get('/api/ai-summary', authenticate, async (req, res) => {
 Generate a brief, personalized morning health summary for the patient. Use bullet points (4-5 items max). Be concise and actionable. Do NOT use markdown headers. Each bullet should start with "•".
 
 Patient Data:
-- Name: ${firstName}
+- Demographics: Adult Patient (De-identified)
 - Health Score: ${score}/100
 - Risk Level: ${riskLevel}
 - Systolic BP: ${factors.systolicBP || 'N/A'} mmHg

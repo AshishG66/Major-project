@@ -43,6 +43,10 @@ model User {
   doctorNotes          DoctorNote[]      @relation("PatientUser")
   writtenNotes         DoctorNote[]      @relation("DoctorUser")
 
+  // Doctor-Patient Assignments (Phase 3 Hardened Access Control)
+  patientAssignments   DoctorPatientAssignment[] @relation("AssignedPatient")
+  doctorAssignments    DoctorPatientAssignment[] @relation("AssignedDoctor")
+
   // Phase-I SRS Requirements
   sensorData           SensorData[]
   digitalTwinState     DigitalTwinState?
@@ -250,6 +254,36 @@ model DoctorNote {
   
   note        String   @db.Text
   createdAt   DateTime @default(now())
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  REVOKED
+  INACTIVE
+}
+
+model DoctorPatientAssignment {
+  id           String           @id @default(uuid())
+  patientId    String
+  patient      User             @relation("AssignedPatient", fields: [patientId], references: [id], onDelete: Cascade)
+  
+  doctorId     String
+  doctor       User             @relation("AssignedDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  status       AssignmentStatus @default(ACTIVE)
+  assignedAt   DateTime         @default(now())
+  revokedAt    DateTime?
+  
+  assignedBy   String?          // User ID of administrator, doctor, or patient who established assignment
+  revokedBy    String?          // User ID of user who revoked assignment
+  notes        String?          @db.Text
+  
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([doctorId, status])
+  @@index([patientId, status])
+  @@index([doctorId, patientId, status])
 }
 
 model EmergencyContact {

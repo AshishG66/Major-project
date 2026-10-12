@@ -24,6 +24,8 @@ router.get('/latest', getLatestPrediction);
 router.get('/prevention-plan', getPreventionPlan);
 router.get('/report', downloadReport);
 router.get('/report/:id', downloadReport);
+router.get('/download', downloadReport);
+router.get('/download/:id', downloadReport);
 
 // Clinical Report Extraction & Retrospective Validation Routes
 router.post('/extract-report', extractClinicalReportController);

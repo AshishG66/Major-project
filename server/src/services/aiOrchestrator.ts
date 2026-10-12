@@ -315,7 +315,7 @@ Your symptoms indicate a potential acute cardiovascular event.
           const latestPred = user.predictions?.[0];
 
           patientContext = `Patient clinical memory:
-- Name: ${p.firstName} ${p.lastName} (${p.gender})
+- Demographics: ${p.gender || 'Patient'} (De-identified)
 - Age: ${age} years | BMI: ${bmi}
 - Medical History: Smoking: ${h?.smokingStatus || 'NEVER'}, Diabetes: ${h?.hasDiabetes ? 'YES' : 'NO'}, Family Heart History: ${h?.familyHistory ? 'YES' : 'NO'}
 - Latest Cardiovascular Risk: ${latestPred ? `${latestPred.riskLevel} (${latestPred.riskScore.toFixed(0)}%)` : 'No scan recorded yet'}`;

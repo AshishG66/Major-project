@@ -2,18 +2,40 @@ import { Request, Response } from 'express';
 import { prisma } from '../config/db.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { verifyAuditChain } from '../services/hashChainService.js';
+import { canAccessPatientRecords } from '../services/accessControlService.js';
 
 export const getAuditLogs = async (req: Request, res: Response) => {
   try {
-    const role = (req as AuthRequest).user?.role;
-    const userId = (req as AuthRequest).user?.id;
-    const { patientId } = req.params;
+    const caller = (req as AuthRequest).user;
+    if (!caller?.id) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
+
+    const patientId = req.params.patientId ? String(req.params.patientId) : undefined;
 
     let whereClause: any = {};
-    if (role !== 'ADMIN' && role !== 'DOCTOR') {
-      whereClause = { userId };
-    } else if (patientId) {
-      whereClause = { patientId };
+    if (caller.role === 'ADMIN') {
+      if (patientId) {
+        whereClause = { patientId };
+      }
+      // If no patientId, admin views institutional audit logs
+    } else if (caller.role === 'DOCTOR') {
+      if (patientId) {
+        const access = await canAccessPatientRecords(caller, patientId, 'AUDIT_LOGS');
+        if (!access.authorized) {
+          return res.status(access.status).json({ success: false, message: access.reason });
+        }
+        whereClause = { patientId };
+      } else {
+        // Doctor without specific assigned patientId only sees actions they authored
+        whereClause = { userId: caller.id };
+      }
+    } else {
+      // Patient (USER) role: restricted to own events
+      if (patientId && patientId !== caller.id) {
+        return res.status(403).json({ success: false, message: 'Access denied. You can only view your own audit logs.' });
+      }
+      whereClause = { userId: caller.id };
     }
 
     const logs = await prisma.auditLog.findMany({

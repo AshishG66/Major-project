@@ -13,7 +13,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "verify": "tsx test_full_verification.ts",
     "test:security": "tsx --test test_security_remediation.ts",
-    "test:verification": "tsx --test test_phase2_1_e2e_verification.ts"
+    "test:verification": "tsx --test test_phase2_1_e2e_verification.ts",
+    "test:access-control": "tsx --test test_phase3_access_control.ts",
+    "test:migration-replay": "tsx src/scripts/testMigrationReplay.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -42,6 +44,7 @@
     "@types/pdfkit": "^0.13.8",
     "@types/ws": "^8.18.1",
     "nodemon": "^3.1.9",
+    "pg-mem": "^3.0.14",
     "prisma": "^6.2.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",

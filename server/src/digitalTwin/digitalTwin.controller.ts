@@ -3,16 +3,23 @@ import { prisma } from '../config/db.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { updateDigitalTwinState } from '../services/digitalTwinService.js';
 import { createAuditLogEntry } from '../services/hashChainService.js';
+import { canAccessPatientRecords } from '../services/accessControlService.js';
 
 export const getDigitalTwinState = async (req: Request, res: Response) => {
   try {
-    const authUserId = (req as AuthRequest).user?.id;
+    const caller = (req as AuthRequest).user;
+    if (!caller?.id) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
     const { patientId } = req.params;
 
-    const targetUserId = (patientId as string) || (authUserId as string);
+    const targetUserId = (patientId as string) || caller.id;
 
-    if (!targetUserId) {
-      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    if (targetUserId !== caller.id) {
+      const access = await canAccessPatientRecords(caller, targetUserId, 'DIGITAL_TWIN');
+      if (!access.authorized) {
+        return res.status(access.status).json({ success: false, message: access.reason });
+      }
     }
 
     let state = await prisma.digitalTwinState.findUnique({

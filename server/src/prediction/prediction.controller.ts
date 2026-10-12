@@ -431,15 +431,25 @@ export const createPrediction = async (req: Request, res: Response) => {
   }
 };
 
+import { canAccessPatientRecords } from '../services/accessControlService.js';
+
 export const getHistory = async (req: Request, res: Response) => {
   try {
-    const userId = (req as AuthRequest).user?.id;
-    if (!userId) {
+    const caller = (req as AuthRequest).user;
+    if (!caller?.id) {
       return res.status(401).json({ success: false, message: 'Unauthenticated' });
     }
 
+    const targetUserId = (req.query.patientId as string) || caller.id;
+    if (targetUserId !== caller.id) {
+      const access = await canAccessPatientRecords(caller, targetUserId, 'PREDICTION_HISTORY');
+      if (!access.authorized) {
+        return res.status(access.status).json({ success: false, message: access.reason });
+      }
+    }
+
     const history = await prisma.prediction.findMany({
-      where: { userId },
+      where: { userId: targetUserId },
       orderBy: { createdAt: 'desc' },
       include: { factors: true },
       take: 20,
@@ -456,33 +466,41 @@ export const getHistory = async (req: Request, res: Response) => {
 
 export const getLatestPrediction = async (req: Request, res: Response) => {
   try {
-    const userId = (req as AuthRequest).user?.id;
-    if (!userId) {
+    const caller = (req as AuthRequest).user;
+    if (!caller?.id) {
       return res.status(401).json({ success: false, message: 'Unauthenticated' });
     }
 
+    const targetUserId = (req.query.patientId as string) || caller.id;
+    if (targetUserId !== caller.id) {
+      const access = await canAccessPatientRecords(caller, targetUserId, 'LATEST_PREDICTION');
+      if (!access.authorized) {
+        return res.status(access.status).json({ success: false, message: access.reason });
+      }
+    }
+
     const latest = await prisma.prediction.findFirst({
-      where: { userId },
+      where: { userId: targetUserId },
       orderBy: { createdAt: 'desc' },
       include: { factors: true },
     });
 
     const activeDiet = await prisma.dietPlan.findFirst({
-      where: { userId, isActive: true },
+      where: { userId: targetUserId, isActive: true },
     });
 
     const activeExercise = await prisma.exercisePlan.findFirst({
-      where: { userId, isActive: true },
+      where: { userId: targetUserId, isActive: true },
     });
 
     const latestHealthScore = await prisma.healthScore.findFirst({
-      where: { userId },
+      where: { userId: targetUserId },
       orderBy: { createdAt: 'desc' },
     });
 
     const preventionPlan = latest && latest.factors
-      ? generatePersonalizedPreventionPlan(userId, latest, latest.factors)
-      : generateFallbackPreventionPlan(userId);
+      ? generatePersonalizedPreventionPlan(targetUserId, latest, latest.factors)
+      : generateFallbackPreventionPlan(targetUserId);
 
     res.status(200).json({
       success: true,
@@ -499,20 +517,28 @@ export const getLatestPrediction = async (req: Request, res: Response) => {
 
 export const getPreventionPlan = async (req: Request, res: Response) => {
   try {
-    const userId = (req as AuthRequest).user?.id;
-    if (!userId) {
+    const caller = (req as AuthRequest).user;
+    if (!caller?.id) {
       return res.status(401).json({ success: false, message: 'Unauthenticated' });
     }
 
+    const targetUserId = (req.query.patientId as string) || caller.id;
+    if (targetUserId !== caller.id) {
+      const access = await canAccessPatientRecords(caller, targetUserId, 'PREVENTION_PLAN');
+      if (!access.authorized) {
+        return res.status(access.status).json({ success: false, message: access.reason });
+      }
+    }
+
     const latest = await prisma.prediction.findFirst({
-      where: { userId },
+      where: { userId: targetUserId },
       orderBy: { createdAt: 'desc' },
       include: { factors: true },
     });
 
     const preventionPlan = latest && latest.factors
-      ? generatePersonalizedPreventionPlan(userId, latest, latest.factors)
-      : generateFallbackPreventionPlan(userId);
+      ? generatePersonalizedPreventionPlan(targetUserId, latest, latest.factors)
+      : generateFallbackPreventionPlan(targetUserId);
 
     res.status(200).json({
       success: true,
@@ -525,30 +551,109 @@ export const getPreventionPlan = async (req: Request, res: Response) => {
 
 export const downloadReport = async (req: Request, res: Response) => {
   try {
-    const userId = (req as AuthRequest).user?.id;
-    if (!userId) {
+    const caller = (req as AuthRequest).user;
+    if (!caller?.id) {
       return res.status(401).json({ success: false, message: 'Unauthenticated' });
     }
 
     const { id } = req.params;
+    const targetUserId = (req.query.patientId as string) || caller.id;
 
-    const prediction = (id === 'latest' || !id)
-      ? await prisma.prediction.findFirst({
-          where: { userId: userId as string },
-          orderBy: { createdAt: 'desc' },
-          include: { factors: true },
-        })
-      : await prisma.prediction.findFirst({
-          where: { id: id as string, userId: userId as string },
+    let prediction: any = null;
+
+    if (id === 'latest' || !id) {
+      if (caller.role === 'ADMIN') {
+        const access = await canAccessPatientRecords(caller, targetUserId, 'REPORT_DOWNLOAD');
+        if (!access.authorized) {
+          return res.status(access.status).json({ success: false, message: access.reason });
+        }
+      } else if (targetUserId !== caller.id) {
+        const access = await canAccessPatientRecords(caller, targetUserId, 'REPORT_DOWNLOAD');
+        if (!access.authorized) {
+          return res.status(access.status).json({ success: false, message: access.reason });
+        }
+      }
+
+      prediction = await prisma.prediction.findFirst({
+        where: { userId: targetUserId },
+        orderBy: { createdAt: 'desc' },
+        include: { factors: true },
+      });
+
+      if (!prediction || !prediction.factors) {
+        return res.status(404).json({ success: false, message: 'Report prediction not found for this patient' });
+      }
+    } else {
+      // Specific report ID lookup (id !== 'latest' && id)
+      // Enforce ownership-scoped or assignment-scoped queries (SEC-3.4-01 remediation)
+      if (caller.role === 'ADMIN') {
+        prediction = await prisma.prediction.findUnique({
+          where: { id: id as string },
           include: { factors: true },
         });
 
-    if (!prediction || !prediction.factors) {
-      return res.status(404).json({ success: false, message: 'Report prediction not found for this patient' });
+        if (!prediction || !prediction.factors) {
+          return res.status(404).json({ success: false, message: 'Report prediction not found for this patient' });
+        }
+
+        // Record administrative access audit log under institutional oversight
+        const access = await canAccessPatientRecords(caller, prediction.userId, 'REPORT_DOWNLOAD');
+        if (!access.authorized) {
+          return res.status(access.status).json({ success: false, message: access.reason });
+        }
+      } else if (caller.role === 'DOCTOR') {
+        if (req.query.patientId) {
+          const queryPatientId = req.query.patientId as string;
+          const access = await canAccessPatientRecords(caller, queryPatientId, 'REPORT_DOWNLOAD');
+          if (!access.authorized) {
+            return res.status(access.status).json({ success: false, message: access.reason });
+          }
+          prediction = await prisma.prediction.findFirst({
+            where: { id: id as string, userId: queryPatientId },
+            include: { factors: true },
+          });
+        } else {
+          // Scope query strictly to patients with an ACTIVE assignment to this doctor
+          const activeAssignments = await prisma.doctorPatientAssignment.findMany({
+            where: { doctorId: caller.id, status: 'ACTIVE' },
+            select: { patientId: true },
+          });
+          const assignedPatientIds = activeAssignments.map((a) => a.patientId);
+
+          prediction = await prisma.prediction.findFirst({
+            where: {
+              id: id as string,
+              userId: { in: assignedPatientIds },
+            },
+            include: { factors: true },
+          });
+        }
+
+        // Return uniform 404 for unassigned/nonexistent reports to eliminate existence oracle
+        if (!prediction || !prediction.factors) {
+          return res.status(404).json({ success: false, message: 'Report prediction not found for this patient' });
+        }
+      } else {
+        // Patient (USER) role: strictly ownership-scoped to caller's own records
+        if (req.query.patientId && req.query.patientId !== caller.id) {
+          return res.status(403).json({ success: false, message: 'Access denied. You are not authorized to view another patient\'s records.' });
+        }
+
+        prediction = await prisma.prediction.findFirst({
+          where: { id: id as string, userId: caller.id },
+          include: { factors: true },
+        });
+
+        // Return uniform 404 for unauthorized/nonexistent reports to eliminate existence oracle
+        if (!prediction || !prediction.factors) {
+          return res.status(404).json({ success: false, message: 'Report prediction not found for this patient' });
+        }
+      }
     }
 
+
     const user = await prisma.user.findUnique({
-      where: { id: userId as string },
+      where: { id: prediction.userId },
       include: { profile: true },
     });
 
@@ -558,7 +663,7 @@ export const downloadReport = async (req: Request, res: Response) => {
 
     // Generate patient-specific personalized prevention plan for this report
     const preventionPlan = generatePersonalizedPreventionPlan(
-      userId,
+      prediction.userId,
       prediction,
       prediction.factors
     );
