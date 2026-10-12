@@ -17,7 +17,7 @@ jobs:
 
     services:
       postgres:
-        image: ankane/pgvector:v0.8.0 # PostgreSQL 16 with pgvector v0.8.0+
+        image: pgvector/pgvector:pg16 # PostgreSQL 16 with pgvector
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres_secure_ci_pass
