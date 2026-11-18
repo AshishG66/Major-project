@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, Clipboard, ArrowLeft, ArrowRight, CheckCircle2, ShieldAlert, Heart, Loader2, Download, AlertTriangle, Sparkles, TrendingUp, Info, FileCheck } from 'lucide-react';
-import { api } from '../services/api';
+import { api, API_BASE_URL } from '../services/api';
 import { usePredictionStore } from '../store/predictionStore';
+import { useAuthStore } from '../store/authStore';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { downloadReportPdf } from '../services/reportService';
@@ -65,10 +66,29 @@ export default function PredictionWizardPage() {
   } | null>(null);
   const [reportAnalysisResult, setReportAnalysisResult] = useState<ClinicalReportPredictionResult | null>(null);
 
-  // Multi-stage AI Scanning Animation States
+  // Multi-stage AI Scanning Animation States & Refs
   const [isScanningAnim, setIsScanningAnim] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
-  const [scanStageText, setScanStageText] = useState('Reading patient vitals & physiological metrics...');
+  const [scanStageText, setScanStageText] = useState('Validating patient information...');
+  const scanTimerRefs = useRef<any[]>([]);
+
+  const STAGE_PROGRESS_MAP: Record<string, number> = {
+    VALIDATING: 15,
+    FETCHING_HISTORY: 30,
+    RUNNING_MODEL: 50,
+    EXPLAINABILITY: 70,
+    DIGITAL_TWIN: 85,
+    PREPARING_REPORT: 95,
+    COMPLETE: 100,
+  };
+
+  const startScanProgressStages = () => {
+    scanTimerRefs.current.forEach(clearTimeout);
+    scanTimerRefs.current = [];
+    setIsScanningAnim(true);
+    setScanProgress(15);
+    setScanStageText('Validating patient information...');
+  };
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -168,127 +188,184 @@ export default function PredictionWizardPage() {
 
   const [scanError, setScanError] = useState<string | null>(null);
 
+  const handleScanSuccess = (data: any, submittedFormValues: ScanFormValues) => {
+    scanTimerRefs.current.forEach(clearTimeout);
+    scanTimerRefs.current = [];
+    setScanError(null);
+    setScanProgress(100);
+    setScanStageText('Scan complete');
+    setIsScanningAnim(false);
+
+    // Merge submitted form values into scanResult as the authoritative
+    // source of truth for patient factors shown in the report.
+    const bmiCalc = submittedFormValues.height && submittedFormValues.weight
+      ? parseFloat((submittedFormValues.weight / ((submittedFormValues.height / 100) ** 2)).toFixed(1))
+      : null;
+
+    const mergedResult = {
+      ...data,
+      prediction: {
+        ...data.prediction,
+        factors: {
+          ...data.prediction?.factors,
+          age: submittedFormValues.age,
+          gender: submittedFormValues.gender,
+          height: submittedFormValues.height,
+          weight: submittedFormValues.weight,
+          bmi: data.prediction?.factors?.bmi ?? bmiCalc,
+          systolicBP: submittedFormValues.systolicBP,
+          diastolicBP: submittedFormValues.diastolicBP,
+          cholesterol: submittedFormValues.cholesterol,
+          heartRate: submittedFormValues.heartRate,
+          bloodSugar: submittedFormValues.bloodSugar,
+          ecgResult: submittedFormValues.ecgResult,
+          exerciseFrequency: submittedFormValues.exerciseFrequency,
+          smoking: submittedFormValues.smoking,
+          alcohol: submittedFormValues.alcohol,
+          diabetes: submittedFormValues.diabetes,
+          familyHistory: submittedFormValues.familyHistory,
+          chestPainType: submittedFormValues.chestPainType,
+          sleepDuration: submittedFormValues.sleepDuration,
+          stressLevel: submittedFormValues.stressLevel,
+        },
+      },
+    };
+
+    setScanResult(mergedResult);
+
+    // Synchronize with Centralized Prediction Store
+    const storePayload = {
+      id: mergedResult.prediction?.id,
+      riskScore: mergedResult.prediction?.riskScore,
+      riskLevel: mergedResult.prediction?.riskLevel,
+      confidenceScore: mergedResult.prediction?.confidenceScore || 0.95,
+      modelName: mergedResult.prediction?.modelName,
+      plainExplanation: mergedResult.prediction?.plainExplanation,
+      shapExplanation: mergedResult.prediction?.shapExplanation,
+      healthScore: mergedResult.healthScore ?? mergedResult.prediction?.healthScore ?? Math.round(100 - (mergedResult.prediction?.riskScore || 0)),
+      factors: mergedResult.prediction?.factors,
+      recommendations: mergedResult.recommendations,
+      createdAt: mergedResult.prediction?.createdAt || new Date().toISOString(),
+    };
+    usePredictionStore.getState().setLatestPrediction(storePayload as any);
+
+    try {
+      localStorage.setItem('latest_scan_result', JSON.stringify(mergedResult));
+    } catch {}
+
+    // Seed React Query cache directly - avoids duplicate immediate GET /prediction/latest network request!
+    queryClient.setQueryData(['latestPrediction'], { success: true, prediction: mergedResult.prediction });
+
+    // Invalidate non-critical caches concurrently in background
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['preventionPlan'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['history'] }),
+      queryClient.invalidateQueries({ queryKey: ['predictionHistory'] }),
+    ]).catch(() => {});
+
+    // If retrospective validation was active, register case in validation registry
+    if (validationComparison?.actualOutcome) {
+      api.post('/prediction/validate-case', {
+        patientData: submittedFormValues,
+        actualOutcome: validationComparison.actualOutcome,
+        reportFileName: validationComparison.reportFileName,
+      }).then((valRes) => {
+        if (valRes?.case) {
+          setValidationComparison((prev: any) => ({
+            ...prev,
+            classification: valRes.case.classification,
+            caseId: valRes.case.id,
+          }));
+        }
+      }).catch((err) => {
+        console.error('Validation registration error:', err);
+      });
+    }
+  };
+
   const scanMutation = useMutation({
     mutationFn: (body: ScanFormValues) => {
       setScanError(null);
-      console.log('[RiskScan] API payload sent to POST /prediction:', JSON.stringify(body, null, 2));
       return api.post('/prediction', body);
     },
     onError: (err: any) => {
       console.error('[RiskScan] Mutation failed:', err);
+      scanTimerRefs.current.forEach(clearTimeout);
+      scanTimerRefs.current = [];
       setIsScanningAnim(false);
       setScanError(err?.message || 'Failed to complete cardiac scan. Please try again.');
     },
     onSuccess: (data, submittedFormValues) => {
-      setScanError(null);
-      // Trigger multi-stage 4-second clinical scan progress animation
-      setIsScanningAnim(true);
-      setScanProgress(5);
-      setScanStageText('Reading patient vitals & physiological metrics...');
-
-      const stages = [
-        { time: 800, pct: 25, text: 'Running XGBoost & Deep Neural Classifiers...' },
-        { time: 1600, pct: 50, text: 'Constructing 3D Anatomical Digital Heart Twin...' },
-        { time: 2400, pct: 75, text: 'Analyzing multi-organ symptom & vascular targeting...' },
-        { time: 3200, pct: 95, text: 'Predicting 3-Year Prognosis & Recovery Trajectories...' },
-      ];
-
-      stages.forEach((st) => {
-        setTimeout(() => {
-          setScanProgress(st.pct);
-          setScanStageText(st.text);
-        }, st.time);
-      });
-
-      setTimeout(() => {
-        setScanProgress(100);
-        setIsScanningAnim(false);
-
-        // Merge submitted form values into scanResult as the authoritative
-        // source of truth for patient factors shown in the report.
-        const bmiCalc = submittedFormValues.height && submittedFormValues.weight
-          ? parseFloat((submittedFormValues.weight / ((submittedFormValues.height / 100) ** 2)).toFixed(1))
-          : null;
-
-        const mergedResult = {
-          ...data,
-          prediction: {
-            ...data.prediction,
-            factors: {
-              ...data.prediction?.factors,
-              age: submittedFormValues.age,
-              gender: submittedFormValues.gender,
-              height: submittedFormValues.height,
-              weight: submittedFormValues.weight,
-              bmi: data.prediction?.factors?.bmi ?? bmiCalc,
-              systolicBP: submittedFormValues.systolicBP,
-              diastolicBP: submittedFormValues.diastolicBP,
-              cholesterol: submittedFormValues.cholesterol,
-              heartRate: submittedFormValues.heartRate,
-              bloodSugar: submittedFormValues.bloodSugar,
-              ecgResult: submittedFormValues.ecgResult,
-              exerciseFrequency: submittedFormValues.exerciseFrequency,
-              smoking: submittedFormValues.smoking,
-              alcohol: submittedFormValues.alcohol,
-              diabetes: submittedFormValues.diabetes,
-              familyHistory: submittedFormValues.familyHistory,
-              chestPainType: submittedFormValues.chestPainType,
-              sleepDuration: submittedFormValues.sleepDuration,
-              stressLevel: submittedFormValues.stressLevel,
-            },
-          },
-        };
-
-        console.log('[RiskScan] Final scanResult factors:', JSON.stringify(mergedResult.prediction?.factors, null, 2));
-        setScanResult(mergedResult);
-
-        // Synchronize with Centralized Prediction Store
-        const storePayload = {
-          id: mergedResult.prediction?.id,
-          riskScore: mergedResult.prediction?.riskScore,
-          riskLevel: mergedResult.prediction?.riskLevel,
-          confidenceScore: mergedResult.prediction?.confidenceScore || 0.95,
-          modelName: mergedResult.prediction?.modelName,
-          plainExplanation: mergedResult.prediction?.plainExplanation,
-          shapExplanation: mergedResult.prediction?.shapExplanation,
-          healthScore: mergedResult.healthScore ?? mergedResult.prediction?.healthScore ?? Math.round(100 - (mergedResult.prediction?.riskScore || 0)),
-          factors: mergedResult.prediction?.factors,
-          recommendations: mergedResult.recommendations,
-          createdAt: mergedResult.prediction?.createdAt || new Date().toISOString(),
-        };
-        usePredictionStore.getState().setLatestPrediction(storePayload as any);
-
-        try {
-          localStorage.setItem('latest_scan_result', JSON.stringify(mergedResult));
-        } catch {}
-        queryClient.invalidateQueries({ queryKey: ['latestPrediction'] });
-        queryClient.refetchQueries({ queryKey: ['latestPrediction'] });
-        queryClient.invalidateQueries({ queryKey: ['preventionPlan'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-        queryClient.invalidateQueries({ queryKey: ['history'] });
-        queryClient.invalidateQueries({ queryKey: ['predictionHistory'] });
-
-        // If retrospective validation was active, register case in validation registry
-        if (validationComparison?.actualOutcome) {
-          api.post('/prediction/validate-case', {
-            patientData: submittedFormValues,
-            actualOutcome: validationComparison.actualOutcome,
-            reportFileName: validationComparison.reportFileName,
-          }).then((valRes) => {
-            if (valRes?.case) {
-              setValidationComparison((prev: any) => ({
-                ...prev,
-                classification: valRes.case.classification,
-                caseId: valRes.case.id,
-              }));
-            }
-          }).catch((err) => {
-            console.error('Validation registration error:', err);
-          });
-        }
-      }, 4000);
+      handleScanSuccess(data, submittedFormValues);
     }
   });
+
+  const executeScanWithStreaming = async (formData: ScanFormValues) => {
+    startScanProgressStages();
+    setScanError(null);
+
+    const token = useAuthStore.getState().token;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/prediction/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok || !response.body) {
+        return scanMutation.mutate(formData);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let scanCompleted = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:')) {
+            try {
+              const event = JSON.parse(trimmed.slice(5).trim());
+              if (event.stage) {
+                setScanProgress(STAGE_PROGRESS_MAP[event.stage] || (event.step ? event.step * 14 : 50));
+                if (event.text) setScanStageText(event.text);
+              }
+              if (event.stage === 'COMPLETE' && event.result) {
+                scanCompleted = true;
+                handleScanSuccess(event.result, formData);
+              } else if (event.stage === 'ERROR') {
+                throw new Error(event.error || 'Prediction calculation failed');
+              }
+            } catch (pErr: any) {
+              if (pErr.message && pErr.message !== 'Unexpected end of JSON input') {
+                throw pErr;
+              }
+            }
+          }
+        }
+      }
+
+      if (!scanCompleted) {
+        scanMutation.mutate(formData);
+      }
+    } catch (err: any) {
+      console.warn('[RiskScan Stream] Stream interrupted, fallback to standard REST API:', err.message);
+      scanMutation.mutate(formData);
+    }
+  };
 
   const handleNextStep = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -302,7 +379,7 @@ export default function PredictionWizardPage() {
 
   const onSubmit = (data: ScanFormValues) => {
     console.log('[RiskScan] Form state submitted:', JSON.stringify(data, null, 2));
-    scanMutation.mutate(data);
+    executeScanWithStreaming(data);
   };
 
   const handleNewScan = () => {
@@ -402,6 +479,7 @@ export default function PredictionWizardPage() {
         });
       }
     } else {
+      startScanProgressStages();
       scanMutation.mutate(clinicalValues as ScanFormValues);
     }
   };

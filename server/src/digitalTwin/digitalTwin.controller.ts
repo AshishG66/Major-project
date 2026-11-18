@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/db.js';
 import { AuthRequest } from '../middleware/auth.js';
-import { updateDigitalTwinState } from '../services/digitalTwinService.js';
+import { updateDigitalTwinState, getCachedDigitalTwinState } from '../services/digitalTwinService.js';
 import { createAuditLogEntry } from '../services/hashChainService.js';
 import { canAccessPatientRecords } from '../services/accessControlService.js';
 
@@ -22,12 +22,15 @@ export const getDigitalTwinState = async (req: Request, res: Response) => {
       }
     }
 
-    let state = await prisma.digitalTwinState.findUnique({
-      where: { userId: targetUserId },
-    });
-
+    let state = getCachedDigitalTwinState(targetUserId);
     if (!state) {
-      state = await updateDigitalTwinState(targetUserId);
+      state = await prisma.digitalTwinState.findUnique({
+        where: { userId: targetUserId },
+      });
+
+      if (!state) {
+        state = await updateDigitalTwinState(targetUserId);
+      }
     }
 
     res.status(200).json({

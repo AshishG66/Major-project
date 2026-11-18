@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createPrediction,
+  createPredictionStream,
   getHistory,
   getLatestPrediction,
   getPreventionPlan,
@@ -19,6 +20,7 @@ const router = Router();
 router.use(authenticate);
 
 router.post('/', createPrediction);
+router.post('/stream', createPredictionStream);
 router.get('/history', getHistory);
 router.get('/latest', getLatestPrediction);
 router.get('/prevention-plan', getPreventionPlan);

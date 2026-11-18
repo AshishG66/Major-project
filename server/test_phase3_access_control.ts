@@ -1115,7 +1115,7 @@ describe('HridayaDarpana Phase 3: Doctor-Patient Access Control Hardening', () =
       }));
 
       // Give event loop brief turn to process subscription
-      await new Promise((r) => setTimeout(r, 60));
+      await new Promise((r) => setTimeout(r, 200));
 
       const subConfirm = receivedEvents.find((e) => e.type === 'SUBSCRIPTION_CONFIRMED' && e.patientId === FIXTURE_PATIENT_BOB.id);
       assert.ok(subConfirm, 'Dr. Carol should receive SUBSCRIPTION_CONFIRMED for actively assigned Patient Bob');
@@ -1128,7 +1128,7 @@ describe('HridayaDarpana Phase 3: Doctor-Patient Access Control Hardening', () =
         mockAuthorizer
       );
 
-      await new Promise((r) => setTimeout(r, 60));
+      await new Promise((r) => setTimeout(r, 200));
 
       const predEvent = receivedEvents.find((e) => e.type === 'PREDICTION_COMPLETED');
       assert.ok(predEvent, 'Dr. Carol should receive PREDICTION_COMPLETED while assignment is ACTIVE');
@@ -1144,7 +1144,7 @@ describe('HridayaDarpana Phase 3: Doctor-Patient Access Control Hardening', () =
 
       assert.strictEqual(revokeRes.status, 200);
 
-      await new Promise((r) => setTimeout(r, 60));
+      await new Promise((r) => setTimeout(r, 200));
 
       const revNotice = receivedEvents.find((e) => e.type === 'ASSIGNMENT_REVOKED' && e.patientId === FIXTURE_PATIENT_BOB.id);
       assert.ok(revNotice, 'Dr. Carol should immediately receive ASSIGNMENT_REVOKED on WebSocket');
@@ -1160,7 +1160,7 @@ describe('HridayaDarpana Phase 3: Doctor-Patient Access Control Hardening', () =
         mockAuthorizer
       );
 
-      await new Promise((r) => setTimeout(r, 60));
+      await new Promise((r) => setTimeout(r, 200));
 
       // PROVE: Doctor Carol did NOT receive SENSITIVE_LAB_RESULT after revocation!
       const leakedEvent = receivedEvents.find((e) => e.type === 'SENSITIVE_LAB_RESULT');

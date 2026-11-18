@@ -51,6 +51,16 @@ export interface PredictionData {
   factors: PatientFactors;
   recommendations?: Recommendations;
   createdAt?: string;
+  hybridModel?: any;
+  hybridStatus?: string;
+  fusionStrategy?: string;
+  mcConfidenceInterval95?: [number, number] | null;
+  dataCompleteness?: {
+    availableLabs: string[];
+    missingLabs: string[];
+    completenessRatio: number;
+  };
+  horizonConfidence?: any;
 }
 
 export interface DashboardStats {

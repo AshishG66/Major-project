@@ -42,7 +42,8 @@ Never claim a medical diagnosis.
 
 For emergencies, advise contacting emergency medical services immediately.`;
 
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const envModel = process.env.GEMINI_MODEL;
+export const GEMINI_MODEL = (envModel && envModel !== 'gemini-3.6-flash') ? envModel : 'gemini-2.5-flash';
 
 const getGenAI = (): GoogleGenerativeAI | null => {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
@@ -396,9 +397,8 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
 
   const candidateModels = Array.from(new Set([
     GEMINI_MODEL,
-    'gemini-3.6-flash',
     'gemini-2.5-flash',
-  ]));
+  ])).filter((m) => m !== 'gemini-3.6-flash');
 
   let reply = "";
   let rawGeminiText = "";
@@ -412,10 +412,20 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
   for (const mName of candidateModels) {
     try {
       activeModelName = mName;
-      const model = genAI.getGenerativeModel({
-        model: mName,
-        systemInstruction: fullSystemInstruction,
-      });
+      const model = genAI.getGenerativeModel(
+        {
+          model: mName,
+          systemInstruction: fullSystemInstruction,
+          // @ts-ignore
+          generationConfig: {
+            // @ts-ignore
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          },
+        },
+        { timeout: 30000 }
+      );
 
       try {
         const chat = model.startChat({ history: chatHistory });
@@ -439,6 +449,15 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
     } catch (err: any) {
       lastError = err;
       logger.warn(`[HridyaAI] Model "${mName}" invocation error: ${err.message}`);
+      // Short-circuit candidate model fallback on fatal authentication or invalid API key errors
+      if (err?.message && (
+        err.message.includes('API_KEY_INVALID') ||
+        err.message.includes('API key not valid') ||
+        err.message.includes('401') ||
+        err.message.includes('403')
+      )) {
+        break;
+      }
     }
   }
 
@@ -473,6 +492,395 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
 
   const totalLatencyMs = Math.round(performance.now() - startTime);
   logger.info(`[HridyaAI Complete] Session: ${activeSessionId} | Total: ${totalLatencyMs}ms (DB: ${dbTimeMs}ms, RAG: ${ragTimeMs}ms, Gemini: ${geminiTimeMs}ms) | Intent: ${intent}`);
+
+  trackAICall({
+    userId: validUserId,
+    agentType,
+    model: activeModelName,
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    latencyMs: totalLatencyMs,
+    ragChunksUsed,
+    status: 'SUCCESS',
+  }).catch(() => {});
+
+  return {
+    sessionId: activeSessionId,
+    reply,
+    agentType,
+    debug: {
+      geminiConnected: true,
+      apiKeyLoaded: !!genAI,
+      model: activeModelName,
+      promptSent: fullSystemInstruction,
+      responseReceived: reply,
+      latencyMs: totalLatencyMs,
+      dbTimeMs,
+      ragTimeMs,
+      geminiTimeMs,
+      tokenUsage: {
+        promptTokenCount: inputTokens,
+        candidatesTokenCount: outputTokens,
+        totalTokenCount: inputTokens + outputTokens,
+      }
+    }
+  };
+};
+
+export const askHridyaAIStream = async (
+  userId: string,
+  sessionId: string | null,
+  message: string,
+  onChunk: (chunk: string) => void,
+  onStage?: (stage: { stage: string; text: string }) => void
+): Promise<OrchestratorResponse> => {
+  const startTime = performance.now();
+  let dbTimeMs = 0;
+  let ragTimeMs = 0;
+  let geminiTimeMs = 0;
+
+  logger.info(`[HridyaAI Stream] Incoming prompt: "${message.slice(0, 50)}..." from user ${userId}`);
+
+  const validUserId = userId;
+  let activeSessionId = sessionId || '';
+
+  onStage?.({ stage: 'SESSION_INIT', text: 'Initializing conversational session...' });
+  const dbStart = performance.now();
+  try {
+    let session = null;
+    if (sessionId) {
+      session = await prisma.chatSession.findFirst({
+        where: { id: sessionId, userId: validUserId },
+        select: { id: true },
+      });
+    }
+
+    if (!session) {
+      session = await prisma.chatSession.create({
+        data: {
+          userId: validUserId,
+          title: message.slice(0, 30) + (message.length > 30 ? '...' : ''),
+        },
+        select: { id: true },
+      });
+    }
+    activeSessionId = session.id;
+    dbTimeMs = Math.round(performance.now() - dbStart);
+  } catch (err: any) {
+    logger.warn(`[HridyaAI Stream DB Warning] Session DB handling deferred: ${err.message}`);
+    if (!activeSessionId) {
+      activeSessionId = `session-${Date.now()}`;
+    }
+  }
+
+  // 1. Structured Intent Classification
+  onStage?.({ stage: 'CLASSIFYING_INTENT', text: 'Analyzing query intent & routing specialist...' });
+  const classification = classifyIntent(message);
+  const { intent, agentType, isPersonalized } = classification;
+
+  // 2. Emergency Mode (Short-circuit for safety)
+  if (intent === 'EMERGENCY') {
+    const emergencyReply = `**[EMERGENCY MODE ACTIVATED]**
+Your symptoms indicate a potential acute cardiovascular event.
+
+**IMMEDIATE CHECKLIST:**
+1. Call your local emergency number (like **911** or **112**) immediately.
+2. Sit upright in a comfortable position and loosen tight clothing.
+3. Do NOT engage in physical activity.
+4. If you have been prescribed nitroglycerin and are cleared to use it, do so immediately.
+
+*HridyaDarpan has automatically unlocked emergency care guidelines.*`;
+
+    onChunk(emergencyReply);
+
+    setImmediate(async () => {
+      try {
+        await prisma.chatMessage.create({
+          data: {
+            sessionId: activeSessionId,
+            role: 'ASSISTANT',
+            content: emergencyReply,
+            agentType: 'EMERGENCY',
+          },
+        });
+      } catch (err: any) {
+        logger.warn(`[HridyaAI DB Warning] Emergency message DB write deferred: ${err.message}`);
+      }
+    });
+
+    const latency = Math.round(performance.now() - startTime);
+    trackAICall({
+      userId: validUserId,
+      agentType: 'EMERGENCY',
+      model: 'rule-based-emergency',
+      latencyMs: latency,
+      status: 'SUCCESS',
+      ragChunksUsed: 0,
+    }).catch(() => {});
+
+    return {
+      sessionId: activeSessionId,
+      reply: emergencyReply,
+      agentType: 'EMERGENCY',
+      debug: {
+        geminiConnected: false,
+        apiKeyLoaded: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+        model: 'rule-based-emergency',
+        promptSent: 'Emergency filters applied',
+        responseReceived: emergencyReply,
+        latencyMs: latency,
+        dbTimeMs,
+        ragTimeMs: 0,
+        geminiTimeMs: 0,
+      }
+    };
+  }
+
+  // 3. Lightweight Clinical Context
+  let patientContext = "";
+  if (isPersonalized && intent !== 'GENERAL' && intent !== 'NEARBY') {
+    onStage?.({ stage: 'PATIENT_CONTEXT', text: 'Loading clinical background & risk records...' });
+    const cached = patientContextCache.get(validUserId);
+    const now = Date.now();
+    if (cached && (now - cached.cachedAt) < PATIENT_CACHE_TTL_MS) {
+      patientContext = cached.context;
+    } else {
+      const patientDbStart = performance.now();
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: validUserId },
+          select: {
+            profile: {
+              select: {
+                firstName: true,
+                lastName: true,
+                gender: true,
+                dateOfBirth: true,
+                height: true,
+                weight: true,
+              }
+            },
+            medicalHistory: {
+              select: {
+                smokingStatus: true,
+                hasDiabetes: true,
+                familyHistory: true,
+              }
+            },
+            predictions: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: {
+                riskLevel: true,
+                riskScore: true,
+              }
+            }
+          }
+        });
+
+        if (user && user.profile) {
+          const p = user.profile;
+          const h = user.medicalHistory;
+          const age = p.dateOfBirth ? Math.round((Date.now() - p.dateOfBirth.getTime()) / (365 * 24 * 3600 * 1000)) : 'N/A';
+          const bmi = (p.height && p.weight) ? (p.weight / ((p.height / 100) ** 2)).toFixed(1) : 'N/A';
+          const latestPred = user.predictions?.[0];
+
+          patientContext = `Patient clinical memory:
+- Demographics: ${p.gender || 'Patient'} (De-identified)
+- Age: ${age} years | BMI: ${bmi}
+- Medical History: Smoking: ${h?.smokingStatus || 'NEVER'}, Diabetes: ${h?.hasDiabetes ? 'YES' : 'NO'}, Family Heart History: ${h?.familyHistory ? 'YES' : 'NO'}
+- Latest Cardiovascular Risk: ${latestPred ? `${latestPred.riskLevel} (${latestPred.riskScore.toFixed(0)}%)` : 'No scan recorded yet'}`;
+
+          patientContextCache.set(validUserId, { context: patientContext, cachedAt: now });
+          dbTimeMs += Math.round(performance.now() - patientDbStart);
+        }
+      } catch (err: any) {
+        logger.warn(`[HridyaAI DB Warning] Lightweight clinical memory fetch deferred: ${err.message}`);
+      }
+    }
+  }
+
+  // 4. Semantic RAG Retrieval
+  let retrievedGuidelines = "";
+  let ragChunksUsed = 0;
+  if (intent !== 'GENERAL' && intent !== 'NEARBY') {
+    onStage?.({ stage: 'RETRIEVING_GUIDELINES', text: 'Retrieving cardiology guidelines & references...' });
+    const ragStart = performance.now();
+    try {
+      const ragResult = await retrieveRAGContext(message);
+      retrievedGuidelines = ragResult.context;
+      ragChunksUsed = ragResult.chunksUsed;
+      ragTimeMs = Math.round(performance.now() - ragStart);
+    } catch (err: any) {
+      logger.warn(`[HridyaAI RAG Warning] RAG fetch deferred: ${err.message}`);
+    }
+  }
+
+  // 5. System Instructions Assembly
+  let fullSystemInstruction = "";
+  if (intent === 'GENERAL') {
+    fullSystemInstruction = `You are HridyaAI, a friendly, intelligent, and versatile AI assistant. Answer the user conversationally, accurately, and directly. For general questions, greetings, or casual talk, respond naturally without inserting medical disclaimers or cardiovascular statistics unless requested.`;
+  } else {
+    let agentSpecificInstruction = "";
+    if (intent === 'DIET') {
+      agentSpecificInstruction = `You are HridyaAI's specialist Diet Agent. Provide cardiac-friendly diet recommendations, emphasizing DASH/Mediterranean low-sodium nutrition.`;
+    } else if (intent === 'EXERCISE') {
+      agentSpecificInstruction = `You are HridyaAI's specialist Exercise Agent. Suggest safe aerobic and conditioning routines aligned with cardiovascular guidelines.`;
+    } else if (intent === 'REPORT') {
+      agentSpecificInstruction = `You are HridyaAI's specialist Report Agent. Help the patient interpret clinical lab markers (cholesterol, glucose, ECG).`;
+    } else if (intent === 'NEARBY') {
+      agentSpecificInstruction = `You are HridyaAI's specialist Nearby Health Agent. Guide the patient on locating nearby clinics, hospitals, or cardiologists.`;
+    } else if (intent === 'PREDICTION' || intent === 'MEDICAL') {
+      agentSpecificInstruction = `You are HridyaAI's specialist Diagnosis Agent. Explain cardiovascular risk factors, blood pressure metrics, and preventive guidelines clearly.`;
+    } else if (intent === 'MEDICATION') {
+      agentSpecificInstruction = `You are HridyaAI's specialist Medication Agent. Provide educational context on standard cardiovascular medications.`;
+    } else {
+      agentSpecificInstruction = `You are HridyaAI, an intelligent healthcare assistant.`;
+    }
+
+    fullSystemInstruction = `${BASE_SYSTEM_PROMPT}
+
+Specialist Agent Context: ${agentSpecificInstruction}
+${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClinical Reference Guidelines:\n${retrievedGuidelines}` : ''}`;
+  }
+
+  // 6. Retrieve Recent History for Session (Max 6 messages for token efficiency and speed)
+  let pastMessages: any[] = [];
+  try {
+    pastMessages = await prisma.chatMessage.findMany({
+      where: {
+        sessionId: activeSessionId,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 6,
+    });
+  } catch (err: any) {
+    logger.warn(`[HridyaAI DB Warning] History fetch deferred: ${err.message}`);
+  }
+
+  const chatHistory = sanitizeGeminiHistory(pastMessages);
+
+  // 7. Invoke Gemini API Streaming
+  onStage?.({ stage: 'STREAMING_RESPONSE', text: 'Generating response stream...' });
+  const genAI = getGenAI();
+  if (!genAI) {
+    throw new Error('Gemini API is not configured on server (GEMINI_API_KEY missing).');
+  }
+
+  const candidateModels = Array.from(new Set([
+    GEMINI_MODEL,
+    'gemini-2.5-flash',
+  ])).filter((m) => m !== 'gemini-3.6-flash');
+
+  let reply = "";
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let activeModelName = GEMINI_MODEL;
+  let lastError: any = null;
+
+  const geminiStart = performance.now();
+
+  for (const mName of candidateModels) {
+    try {
+      activeModelName = mName;
+      const model = genAI.getGenerativeModel(
+        {
+          model: mName,
+          systemInstruction: fullSystemInstruction,
+          // @ts-ignore
+          generationConfig: {
+            // @ts-ignore
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          },
+        },
+        { timeout: 30000 }
+      );
+
+      try {
+        const chat = model.startChat({ history: chatHistory });
+        const streamResult = await chat.sendMessageStream(message);
+        for await (const chunk of streamResult.stream) {
+          const chunkText = chunk.text();
+          if (chunkText) {
+            reply += chunkText;
+            onChunk(chunkText);
+          }
+        }
+        const finalResponse = await streamResult.response;
+        const usage = finalResponse.usageMetadata;
+        if (usage) {
+          inputTokens = usage.promptTokenCount || 0;
+          outputTokens = usage.candidatesTokenCount || 0;
+        }
+      } catch (historyErr: any) {
+        logger.warn(`[HridyaAI Stream] History rejected by model ${mName} (${historyErr.message}). Falling back to direct stream.`);
+        const streamResult = await model.generateContentStream(message);
+        for await (const chunk of streamResult.stream) {
+          const chunkText = chunk.text();
+          if (chunkText) {
+            reply += chunkText;
+            onChunk(chunkText);
+          }
+        }
+        const finalResponse = await streamResult.response;
+        const usage = finalResponse.usageMetadata;
+        if (usage) {
+          inputTokens = usage.promptTokenCount || 0;
+          outputTokens = usage.candidatesTokenCount || 0;
+        }
+      }
+
+      geminiTimeMs = Math.round(performance.now() - geminiStart);
+      lastError = null;
+      break;
+    } catch (err: any) {
+      lastError = err;
+      logger.warn(`[HridyaAI Stream] Model "${mName}" invocation error: ${err.message}`);
+      if (err?.message && (
+        err.message.includes('API_KEY_INVALID') ||
+        err.message.includes('API key not valid') ||
+        err.message.includes('401') ||
+        err.message.includes('403')
+      )) {
+        break;
+      }
+    }
+  }
+
+  if (lastError && !reply) {
+    logger.error(`[HridyaAI Stream Error] Gemini API execution failed across candidate models: ${lastError.message}`);
+    throw lastError;
+  }
+
+  // 8. Background Turn Persistence
+  setImmediate(async () => {
+    try {
+      await prisma.chatMessage.createMany({
+        data: [
+          {
+            sessionId: activeSessionId,
+            role: 'USER',
+            content: message,
+            agentType: 'ORCHESTRATOR',
+          },
+          {
+            sessionId: activeSessionId,
+            role: 'ASSISTANT',
+            content: reply,
+            agentType,
+          },
+        ],
+      });
+    } catch (err: any) {
+      logger.warn(`[HridyaAI DB Warning] Messages DB write deferred: ${err.message}`);
+    }
+  });
+
+  const totalLatencyMs = Math.round(performance.now() - startTime);
+  logger.info(`[HridyaAI Stream Complete] Session: ${activeSessionId} | Total: ${totalLatencyMs}ms (DB: ${dbTimeMs}ms, RAG: ${ragTimeMs}ms, Gemini: ${geminiTimeMs}ms) | Intent: ${intent}`);
 
   trackAICall({
     userId: validUserId,

@@ -2,15 +2,18 @@ import { prisma } from '../config/db.js';
 import { logger } from '../config/logger.js';
 import { socketService } from './socketService.js';
 
-export async function checkAndTriggerAlerts(params: {
-  userId: string;
-  riskLevel: string;
-  riskScore: number;
-  systolicBP?: number;
-  diastolicBP?: number;
-  heartRate?: number;
-  factors?: any;
-}) {
+export async function checkAndTriggerAlerts(
+  params: {
+    userId: string;
+    riskLevel: string;
+    riskScore: number;
+    systolicBP?: number;
+    diastolicBP?: number;
+    heartRate?: number;
+    factors?: any;
+  },
+  options: { throwOnError?: boolean } = {}
+) {
   try {
     const { userId, riskLevel, riskScore, systolicBP = 120, diastolicBP = 80, heartRate = 72, factors } = params;
 
@@ -58,33 +61,41 @@ export async function checkAndTriggerAlerts(params: {
       factors?.diabetes ? 'Diabetes History' : null,
     ].filter(Boolean);
 
-    const alert = await prisma.alert.create({
-      data: {
-        userId,
-        level: alertLevel,
-        title,
-        message,
-        contributingFactors: contributingFactors as any,
-        status: 'TRIGGERED',
-      },
-    });
+    // Atomically create Alert and Notification records
+    const [alert] = await prisma.$transaction([
+      prisma.alert.create({
+        data: {
+          userId,
+          level: alertLevel,
+          title,
+          message,
+          contributingFactors: contributingFactors as any,
+          status: 'TRIGGERED',
+        },
+      }),
+      prisma.notification.create({
+        data: {
+          userId,
+          type: 'SYSTEM',
+          title,
+          message,
+        },
+      }),
+    ]);
 
-    // Also push to System Notification table
-    await prisma.notification.create({
-      data: {
-        userId,
-        type: 'SYSTEM',
-        title,
-        message,
-      },
-    });
-
-    // Emit real-time WebSocket alert event
-    socketService.emitToUser(userId, 'cardio_alert', alert);
+    // Emit real-time WebSocket alert event (best-effort delivery)
+    try {
+      socketService.emitToUser(userId, 'cardio_alert', alert);
+    } catch (sockErr: any) {
+      logger.warn(`[Alert WebSocket] Live delivery skipped: ${sockErr.message}`);
+    }
 
     return alert;
   } catch (error: any) {
     logger.warn(`Alert trigger check failed: ${error.message}`);
+    if (options.throwOnError) {
+      throw error;
+    }
     return null;
   }
 }

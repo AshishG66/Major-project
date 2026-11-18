@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MessageSquare, Plus, Send, Loader2, Heart, ShieldAlert, Sparkles, Upload, FileText, CheckCircle, Navigation, Phone, Flame, MapPin, Activity, Shield, Clipboard, Zap, Terminal, Copy, RotateCcw, Square, Trash2, Check, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
-import { api } from '../services/api';
+import { api, API_BASE_URL } from '../services/api';
+import { useAuthStore } from '../store/authStore';
 
 interface AgentConfig {
   type: string;
@@ -44,6 +45,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const timerRefs = useRef<any[]>([]);
   const streamTimerRef = useRef<any>(null);
+  const isSubmittingRef = useRef<boolean>(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [lastDebugInfo, setLastDebugInfo] = useState<any>(null);
 
@@ -226,6 +228,9 @@ export default function ChatPage() {
 
   const sendMessageMutation = useMutation({
     mutationFn: (body: { message: string; sessionId: string }) => api.post('/chat/message', body),
+    onSettled: () => {
+      isSubmittingRef.current = false;
+    },
     onSuccess: (data, variables) => {
       timerRefs.current.forEach(clearTimeout);
       timerRefs.current = [];
@@ -324,8 +329,119 @@ export default function ChatPage() {
     triggerSend(inputText);
   };
 
+  const executeStreamChat = async (text: string, currentSessionId: string, pendingMsgId: string) => {
+    const token = useAuthStore.getState().token;
+    let accumulatedText = '';
+    let targetSessionId = currentSessionId;
+    let resolvedAgentType = activeAgentType;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: text, sessionId: currentSessionId }),
+      });
+
+      if (!response.ok || !response.body) {
+        return sendMessageMutation.mutate({ message: text, sessionId: currentSessionId });
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streamFinished = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:')) {
+            try {
+              const event = JSON.parse(trimmed.slice(5).trim());
+              if (event.type === 'STAGE') {
+                if (event.text) setRoutingLog(event.text);
+              } else if (event.type === 'CHUNK') {
+                accumulatedText += event.text;
+                // Update the pending assistant message progressively
+                queryClient.setQueryData(['chatMessages', currentSessionId], (oldData: any) => {
+                  const oldMsgs = oldData?.messages || [];
+                  return {
+                    success: true,
+                    messages: oldMsgs.map((m: any) =>
+                      m.id === pendingMsgId
+                        ? { ...m, isPending: false, content: accumulatedText, agentType: resolvedAgentType }
+                        : m
+                    ),
+                  };
+                });
+              } else if (event.type === 'DONE') {
+                streamFinished = true;
+                targetSessionId = event.sessionId || currentSessionId;
+                resolvedAgentType = event.agentType || 'ORCHESTRATOR';
+                setActiveAgentType(resolvedAgentType);
+                if (resolvedAgentType === 'EMERGENCY') {
+                  setEmergencyAlert(true);
+                }
+                if (event.debug) {
+                  setLastDebugInfo(event.debug);
+                }
+                setRoutingLog(null);
+                updateActiveSession(targetSessionId);
+
+                // Finalize assistant message
+                queryClient.setQueryData(['chatMessages', targetSessionId], (oldData: any) => {
+                  const msgs = oldData?.messages || [];
+                  return {
+                    success: true,
+                    messages: msgs.map((m: any) =>
+                      m.id === pendingMsgId
+                        ? { ...m, isPending: false, content: event.reply || accumulatedText, agentType: resolvedAgentType }
+                        : m
+                    ),
+                  };
+                });
+
+                queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
+              } else if (event.type === 'ERROR') {
+                throw new Error(event.message || 'Stream processing error');
+              }
+            } catch (pErr: any) {
+              if (pErr.message && pErr.message !== 'Unexpected end of JSON input') {
+                throw pErr;
+              }
+            }
+          }
+        }
+      }
+
+      if (!streamFinished && !accumulatedText) {
+        sendMessageMutation.mutate({ message: text, sessionId: currentSessionId });
+      } else {
+        isSubmittingRef.current = false;
+      }
+    } catch (err: any) {
+      console.warn('[HridyaAI Stream] Stream interrupted, fallback to standard message:', err.message);
+      if (!accumulatedText) {
+        sendMessageMutation.mutate({ message: text, sessionId: currentSessionId });
+      } else {
+        isSubmittingRef.current = false;
+        setRoutingLog(null);
+      }
+    }
+  };
+
   const triggerSend = (text: string) => {
-    if (!text.trim() || sendMessageMutation.isPending) return;
+    if (!text.trim() || sendMessageMutation.isPending || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setLastUserPrompt(text);
     setInputText('');
 
@@ -335,6 +451,7 @@ export default function ChatPage() {
     }
 
     const clientMsgId = `client-${Date.now()}`;
+    const pendingMsgId = `msg-pending-${Date.now()}`;
 
     // Optimistically render the user message and thinking indicator immediately
     const userMsg = {
@@ -346,7 +463,7 @@ export default function ChatPage() {
     };
 
     const pendingAssistantMsg = {
-      id: `msg-pending-${Date.now()}`,
+      id: pendingMsgId,
       role: 'ASSISTANT',
       content: '',
       agentType: activeAgentType,
@@ -361,12 +478,9 @@ export default function ChatPage() {
     timerRefs.current.forEach(clearTimeout);
     timerRefs.current = [];
 
-    setRoutingLog(`HridayaAI routing prompt to Gemini 2.5 Flash...`);
+    setRoutingLog(`Routing query to Gemini 2.5 Flash...`);
 
-    sendMessageMutation.mutate({
-      message: text,
-      sessionId: currentSessionId,
-    });
+    executeStreamChat(text, currentSessionId, pendingMsgId);
   };
 
   const handleStopStreaming = () => {
@@ -791,8 +905,8 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Animated Thinking Indicator */}
-              {sendMessageMutation.isPending && (
+              {/* Animated Thinking Indicator (only show if not already rendered as optimistic bubble) */}
+              {sendMessageMutation.isPending && !messages.some((m: any) => m.isPending) && (
                 <div className="flex justify-start">
                   <div className="glass-panel border-blue-200 bg-white p-4 rounded-2xl rounded-tl-none flex items-center space-x-3 shadow-xs">
                     <div className="flex space-x-1 items-center">

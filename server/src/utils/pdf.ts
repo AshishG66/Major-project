@@ -48,6 +48,7 @@ export interface ReportData {
     bmi: number;
   };
   preventionPlan?: PersonalizedPreventionPlan | null;
+  digitalTwinState?: any;
 }
 
 /**
@@ -370,11 +371,34 @@ export const buildReportPdf = (res: Response | NodeJS.WritableStream, data: Repo
      .text('RISK CLASSIFICATION', 420, currentY + 5);
   currentY += tableHeaderH;
 
+  const hc = data.prediction.horizonConfidence || {};
+  const isHybridActive = hc.hybridStatus === 'HYBRID_FUSION_ACTIVE';
+  const ci95 = hc.mcConfidenceInterval95;
+  const ciStr = ci95 ? `[${(ci95[0] * 100).toFixed(1)}% - ${(ci95[1] * 100).toFixed(1)}%]` : 'N/A';
+
   const modelsGrid = [
+    {
+      name: 'Hybrid XGBoost-LSTM Architecture',
+      result: isHybridActive
+        ? `Dual-Branch Meta-Learner (95% CI: ${ciStr})`
+        : 'Static XGBoost Branch (Single visit baseline)',
+      tier: riskLevel,
+    },
+    {
+      name: '  * Tabular XGBoost Branch (Demographics & Labs)',
+      result: hc.hybridModel?.xgboostBranch?.probability != null
+        ? `${(hc.hybridModel.xgboostBranch.probability * 100).toFixed(1)}% Prob (Tree-SHAP attributions)`
+        : `${data.prediction.riskScore.toFixed(1)}% Score`,
+      tier: riskLevel,
+    },
+    {
+      name: '  * Longitudinal LSTM Branch (Sequential Trajectory)',
+      result: isHybridActive
+        ? `${(hc.hybridModel.lstmBranch.details.probability * 100).toFixed(1)}% Prob (Additive Attention active)`
+        : 'Deferred (Requires >= 2 clinical visits)',
+      tier: isHybridActive ? riskLevel : 'DEFERRED',
+    },
     { name: 'Framingham 10-Yr CHD Model', result: `${data.prediction.riskScore.toFixed(1)}% 10-Yr CHD Score`, tier: riskLevel },
-    { name: 'Kaggle Lifestyle Cardio Ensemble', result: `${data.prediction.riskScore.toFixed(1)}% Lifestyle Model Score`, tier: riskLevel },
-    { name: 'Heart Failure Reserve & Strain', result: 'Deferred (Echocardiogram required)', tier: 'DEFERRED' },
-    { name: 'Stroke Predictive Likelihood', result: 'Deferred (Specialized diagnostics required)', tier: 'DEFERRED' },
     { name: 'PhysioNet ECG Status', result: cleanAscii(data.factors.ecgResult || 'Normal Sinus Rhythm'), tier: 'NORMAL' },
   ];
 
@@ -510,7 +534,64 @@ export const buildReportPdf = (res: Response | NodeJS.WritableStream, data: Repo
   doc.fillColor(textMuted).fontSize(7.5).font('Helvetica')
      .text(cleanAscii(dt.patientExplanation), 48, currentY + 29, { width: 500, height: 16, ellipsis: true });
 
-  currentY += dtCardH + 12;
+  currentY += dtCardH + 8;
+
+  // 1.1 LONGITUDINAL MEASUREMENT COMPARISON & TRENDS
+  doc.fillColor(primaryDark).fontSize(9.5).font('Helvetica-Bold')
+     .text('LONGITUDINAL BIOMARKER TRAJECTORY & VISIT-OVER-VISIT COMPARISON', 36, currentY);
+  currentY += 12;
+  doc.rect(36, currentY, 523.28, 1).fill(borderMedium);
+  currentY += 5;
+
+  const longComp = data.digitalTwinState?.majorFactors?.longitudinalComparison || [];
+  if (longComp.length > 0) {
+    const longHeaderH = 15;
+    doc.rect(36, currentY, 523.28, longHeaderH).fill(bgAlternate);
+    doc.fillColor(textDark).fontSize(7).font('Helvetica-Bold')
+       .text('BIOMARKER / CLINICAL PARAMETER', 46, currentY + 4)
+       .text('CURRENT VISIT', 220, currentY + 4)
+       .text('PRIOR VISIT', 330, currentY + 4)
+       .text('DELTA & CLINICAL TREND', 430, currentY + 4);
+    currentY += longHeaderH;
+
+    const rowH = 13;
+    longComp.slice(0, 5).forEach((item: any, idx: number) => {
+      const rowBg = idx % 2 === 0 ? '#FFFFFF' : bgLight;
+      doc.rect(36, currentY, 523.28, rowH).fill(rowBg);
+      doc.rect(36, currentY, 523.28, rowH).stroke(borderLight);
+
+      const metricName = cleanAscii(item.metric || 'Biomarker');
+      const curVal = item.current != null ? `${item.current} ${item.unit || ''}` : '--';
+      const prevVal = item.previous != null ? `${item.previous} ${item.unit || ''}` : 'Baseline Visit';
+
+      let trendText = 'Stable';
+      let trendColor = '#059669';
+      if (item.trend === 'IMPROVED') {
+        trendText = `Favorable (${item.delta > 0 ? '+' : ''}${item.delta} ${item.unit || ''})`;
+        trendColor = '#059669';
+      } else if (item.trend === 'WORSENED') {
+        trendText = `Elevated (+${item.delta} ${item.unit || ''})`;
+        trendColor = '#E11D48';
+      } else if (item.trend === 'BASELINE') {
+        trendText = 'Initial Baseline';
+        trendColor = '#2563EB';
+      }
+
+      doc.fillColor(textDark).fontSize(7).font('Helvetica-Bold').text(metricName, 46, currentY + 3.2, { width: 165, ellipsis: true });
+      doc.fillColor(textDark).fontSize(7).font('Helvetica').text(curVal, 220, currentY + 3.2);
+      doc.fillColor(textMuted).fontSize(7).font('Helvetica').text(prevVal, 330, currentY + 3.2);
+      doc.fillColor(trendColor).fontSize(7).font('Helvetica-Bold').text(trendText, 430, currentY + 3.2);
+
+      currentY += rowH;
+    });
+    currentY += 8;
+  } else {
+    doc.rect(36, currentY, 523.28, 18).fill(bgLight);
+    doc.rect(36, currentY, 523.28, 18).stroke(borderLight);
+    doc.fillColor(textMuted).fontSize(7).font('Helvetica')
+       .text('Baseline initial record established. Longitudinal temporal trajectories will activate upon subsequent clinic visit.', 46, currentY + 5);
+    currentY += 24;
+  }
 
   // 2. PRIORITIZED PREVENTION PROTOCOL CARDS
   doc.fillColor(primaryDark).fontSize(10.5).font('Helvetica-Bold')

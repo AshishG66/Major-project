@@ -42,8 +42,17 @@ def get_orchestrator():
 @app.on_event("startup")
 def startup_event():
     try:
-        get_orchestrator()
-        print("[FastAPI] Unified AI Orchestrator initialized on startup.")
+        orch = get_orchestrator()
+        # Pre-warm models and authentic SHAP explainer with a dummy patient prediction
+        dummy_patient = {
+            "age": 52, "gender": 0, "height": 172.0, "weight": 75.0, "bmi": 25.5,
+            "systolicBP": 135, "diastolicBP": 85, "cholesterol": 215, "heartRate": 74,
+            "bloodSugar": 98, "ecgResult": 0, "exerciseFrequency": 3, "smoking": 0,
+            "alcohol": 0, "diabetes": 0, "familyHistory": 0, "chestPainType": 0,
+            "sleepDuration": 7.0, "stressLevel": 4
+        }
+        orch.orchestrate_prediction(dummy_patient)
+        print("[FastAPI] Unified AI Orchestrator initialized and pre-warmed on startup.")
     except Exception as e:
         print(f"[FastAPI] Error initializing orchestrator on startup: {e}")
 
@@ -79,6 +88,7 @@ class UnifiedPatientRequest(BaseModel):
     qtInterval: Optional[float] = Field(default=None, ge=200, le=700)
     pWaveAmp: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
     tWaveAmp: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
+    history: Optional[List[Dict[str, Any]]] = Field(default=None, description="Sequential longitudinal clinic visits")
 
 @app.get("/health")
 def health_check():
@@ -158,15 +168,50 @@ def run_unified_prediction(request: UnifiedPatientRequest):
     """
     Master AI Pipeline Orchestrator Endpoint.
     Runs all 5 multi-dataset models and returns full Digital Twin prediction response.
+    Includes clinical recommendations directly to eliminate redundant round-trip API calls.
     """
     try:
         patient_data = request.dict()
         print(f"[FastAPI /predict] Received patient features: {patient_data}", flush=True)
         orch = get_orchestrator()
-        result = orch.orchestrate_prediction(patient_data)
+        result = orch.orchestrate_prediction(patient_data, history=patient_data.get("history"))
+
+        # Consolidate recommendations into prediction payload (avoids second network hop)
+        risk_lvl = result.get("riskLevel", "LOW")
+        rec_req = RecommendationRequest(
+            riskLevel=risk_lvl,
+            age=request.age,
+            gender=request.gender,
+            systolicBP=request.systolicBP,
+            diastolicBP=request.diastolicBP,
+            cholesterol=request.cholesterol,
+            bloodSugar=request.bloodSugar,
+            bmi=request.bmi,
+            exerciseFrequency=request.exerciseFrequency,
+            smoking=request.smoking
+        )
+        result["recommendations"] = get_recommendations(rec_req)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+@app.post("/predict-hybrid")
+def predict_hybrid(request: UnifiedPatientRequest):
+    """
+    Dedicated Objective 2 Hybrid XGBoost-LSTM Endpoint.
+    Combines static tabular branch with longitudinal LSTM branch & Monte Carlo Dropout 95% CI.
+    """
+    try:
+        orch = get_orchestrator()
+        patient_data = request.dict()
+        if orch.hybrid_system is None:
+            raise HTTPException(status_code=503, detail="Hybrid XGBoost-LSTM system not loaded")
+        res = orch.hybrid_system.run_prediction(patient_data, history=patient_data.get("history"))
+        return res
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict-heart-risk")
 def predict_heart_risk(request: UnifiedPatientRequest):

@@ -38,13 +38,23 @@ class TrendRequest(BaseModel):
     predictions: List[dict]
 
 
+_cached_predictor = None
+
 def get_predictor():
-    """Import predictor from main module."""
-    import sys, os
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from models.prediction.predict import HeartDiseasePredictor
-    model_dir = "ai/models/prediction/"
-    return HeartDiseasePredictor(model_dir=model_dir)
+    """Import predictor from main module (singleton pattern with path fallback)."""
+    global _cached_predictor
+    if _cached_predictor is None:
+        import sys, os
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from models.prediction.predict import HeartDiseasePredictor
+        candidates = ["models/prediction/", "ai/models/prediction/", "models/", "ai/models/"]
+        resolved_dir = "ai/models/prediction/"
+        for c in candidates:
+            if os.path.exists(c) and os.path.exists(os.path.join(c, "heart_best_model.joblib")):
+                resolved_dir = c
+                break
+        _cached_predictor = HeartDiseasePredictor(model_dir=resolved_dir)
+    return _cached_predictor
 
 
 @router.post("/what-if")

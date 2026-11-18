@@ -12,14 +12,17 @@ export function calculateEventHash(previousHash: string, eventData: any): string
   return crypto.createHash('sha256').update(serialized).digest('hex');
 }
 
-export async function createAuditLogEntry(params: {
-  userId?: string;
-  patientId?: string;
-  eventType: string;
-  action: string;
-  details: string;
-  ipAddress?: string;
-}) {
+export async function createAuditLogEntry(
+  params: {
+    userId?: string;
+    patientId?: string;
+    eventType: string;
+    action: string;
+    details: string;
+    ipAddress?: string;
+  },
+  options: { throwOnError?: boolean } = {}
+) {
   try {
     // Get latest audit log record for hash chaining
     const latestLog = await prisma.auditLog.findFirst({
@@ -56,6 +59,9 @@ export async function createAuditLogEntry(params: {
     return log;
   } catch (error: any) {
     logger.warn(`Failed to create tamper-evident audit log entry: ${error.message}`);
+    if (options.throwOnError) {
+      throw error;
+    }
     return null;
   }
 }

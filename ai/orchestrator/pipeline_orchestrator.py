@@ -1,10 +1,30 @@
 import os
+import sys
 import time
 import json
 import joblib
 import numpy as np
 import pandas as pd
+import concurrent.futures
 from typing import Dict, Any, List, Optional, Tuple
+
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_ai_dir = os.path.dirname(_current_dir)
+if _ai_dir not in sys.path:
+    sys.path.append(_ai_dir)
+
+try:
+    from models.hybrid_architecture import HybridXGBoostLSTMSystem
+except ImportError:
+    try:
+        from ai.models.hybrid_architecture import HybridXGBoostLSTMSystem
+    except ImportError:
+        HybridXGBoostLSTMSystem = None
+
+try:
+    import shap
+except ImportError:
+    shap = None
 
 class UnifiedAIOrchestrator:
     """
@@ -76,7 +96,15 @@ class UnifiedAIOrchestrator:
         self.models_dir = models_dir
         self.models: Dict[str, Any] = {}
         self.production_manifest: Dict[str, Any] = {}
+        self.hybrid_system: Optional[Any] = None
         self.load_all_models()
+
+        if HybridXGBoostLSTMSystem is not None:
+            try:
+                self.hybrid_system = HybridXGBoostLSTMSystem(models_dir=self.models_dir)
+                print(f"[UnifiedAIOrchestrator] Hybrid XGBoost-LSTM System initialized from {self.models_dir}")
+            except Exception as e:
+                print(f"[UnifiedAIOrchestrator] Warning: Could not initialize HybridXGBoostLSTMSystem: {e}")
 
     def load_all_models(self):
         """Loads production model manifest and model joblib bundles."""
@@ -551,9 +579,12 @@ class UnifiedAIOrchestrator:
         Computes authentic patient-specific SHAP values using the primary executed model.
         Returns explicit EXPLANATION_UNAVAILABLE if valid SHAP computation is not possible.
         Never outputs fixed fabricated weights. Correctly handles multiclass for predicted class.
+        Caches TreeExplainer per model bundle to eliminate redundant parsing and instantiation.
         """
         try:
-            import shap
+            global shap
+            if shap is None:
+                import shap
             model = primary_model_bundle.get("model")
             preprocessor = primary_model_bundle.get("preprocessor")
             if not model or not preprocessor:
@@ -566,13 +597,19 @@ class UnifiedAIOrchestrator:
             X_sample = preprocessor.transform(sample_df)
             feature_names = preprocessor.feature_names
 
-            # Select tree or linear explainer
-            model_type = type(model).__name__
-            if any(t in model_type for t in ["LGBM", "CatBoost", "XGB", "RandomForest", "GradientBoosting"]):
-                explainer = shap.TreeExplainer(model)
+            # Select tree or linear explainer (cached per model bundle for performance)
+            explainer = primary_model_bundle.get("_cached_explainer")
+            if explainer is None:
+                model_type = type(model).__name__
+                if any(t in model_type for t in ["LGBM", "CatBoost", "XGB", "RandomForest", "GradientBoosting"]):
+                    explainer = shap.TreeExplainer(model)
+                else:
+                    explainer = shap.Explainer(model)
+                primary_model_bundle["_cached_explainer"] = explainer
+
+            if hasattr(explainer, "shap_values"):
                 shap_vals = explainer.shap_values(X_sample)
             else:
-                explainer = shap.Explainer(model)
                 shap_vals = explainer(X_sample)
 
             if hasattr(shap_vals, "values"):
@@ -624,17 +661,42 @@ class UnifiedAIOrchestrator:
                 "reason": f"Patient-specific SHAP explanation could not be computed: {str(e)}"
             }
 
-    def orchestrate_prediction(self, patient_info: Dict[str, Any]) -> Dict[str, Any]:
+    def orchestrate_prediction(self, patient_info: Dict[str, Any], history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         Master Pipeline Orchestrator:
-        Executes sub-models whose inputs are satisfied, handles missing-feature models transparently,
-        computes patient-specific SHAP explanations, and builds the structured clinical response.
+        Executes hybrid XGBoost-LSTM system (with longitudinal LSTM attention & MC Dropout 95% CI)
+        along with specialized sub-models (Framingham, Cardio, Heart Failure, Stroke, ECG),
+        computes authentic SHAP explanations, and builds the structured clinical response.
         """
+        if history is None:
+            history = patient_info.get("history") or patient_info.get("longitudinalHistory")
+
         executed_models: List[str] = []
         deferred_models: List[Dict[str, Any]] = []
 
-        # 1. Run Models
-        framingham_res = self.run_framingham_predict(patient_info)
+        # 0. Execute Hybrid XGBoost-LSTM System
+        hybrid_res = None
+        if self.hybrid_system is not None:
+            try:
+                hybrid_res = self.hybrid_system.run_prediction(patient_info, history=history)
+                executed_models.append("hybrid_xgboost_lstm")
+            except Exception as e:
+                print(f"[UnifiedAIOrchestrator] Notice: Hybrid prediction exception: {e}")
+
+        # 1. Run Independent Models in Parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            fut_framingham = executor.submit(self.run_framingham_predict, patient_info)
+            fut_cardio = executor.submit(self.run_cardio_lifestyle_predict, patient_info)
+            fut_hf = executor.submit(self.run_heart_failure_predict, patient_info)
+            fut_stroke = executor.submit(self.run_stroke_predict, patient_info)
+            fut_ecg = executor.submit(self.run_ecg_predict, patient_info)
+
+            framingham_res = fut_framingham.result()
+            cardio_res = fut_cardio.result()
+            hf_res = fut_hf.result()
+            stroke_res = fut_stroke.result()
+            ecg_res = fut_ecg.result()
+
         if framingham_res.get("status") == "SUCCESS":
             executed_models.append("framingham")
             p_chd = framingham_res["probability"]
@@ -642,7 +704,6 @@ class UnifiedAIOrchestrator:
             deferred_models.append(framingham_res)
             p_chd = None
 
-        cardio_res = self.run_cardio_lifestyle_predict(patient_info)
         if cardio_res.get("status") == "SUCCESS":
             executed_models.append("cardio")
             p_cardio = cardio_res["probability"]
@@ -650,7 +711,6 @@ class UnifiedAIOrchestrator:
             deferred_models.append(cardio_res)
             p_cardio = None
 
-        hf_res = self.run_heart_failure_predict(patient_info)
         if hf_res.get("status") == "SUCCESS":
             executed_models.append("heart_failure")
             p_hf = hf_res["probability"]
@@ -660,7 +720,6 @@ class UnifiedAIOrchestrator:
             p_hf = None
             ejection_fraction = None
 
-        stroke_res = self.run_stroke_predict(patient_info)
         if stroke_res.get("status") == "SUCCESS":
             executed_models.append("stroke")
             p_stroke = stroke_res["probability"]
@@ -668,7 +727,6 @@ class UnifiedAIOrchestrator:
             deferred_models.append(stroke_res)
             p_stroke = None
 
-        ecg_res = self.run_ecg_predict(patient_info)
         if ecg_res.get("status") == "SUCCESS":
             executed_models.append("ecg")
             ecg_status = ecg_res["ecgStatus"]
@@ -742,11 +800,20 @@ class UnifiedAIOrchestrator:
         feature_importance = shap_result.get("featureImportance", [])
         explanation_status = shap_result.get("explanationStatus", "EXPLANATION_UNAVAILABLE")
 
+        # Fallback to authentic SHAP from hybrid XGBoost branch if primary explainer is unassigned
+        if (not feature_importance or explanation_status == "EXPLANATION_UNAVAILABLE") and hybrid_res:
+            xgb_features = hybrid_res.get("xgboostBranch", {}).get("featureAttributions", [])
+            if xgb_features:
+                feature_importance = xgb_features
+                explanation_status = "AUTHENTIC_SHAP_COMPUTED"
+
         # Clinical Summary
         clinical_summary = (
             f"Patient demonstrates {risk_level} cardiovascular risk ({risk_score:.1f}%) "
             f"evaluated across {len(executed_models)} verified models: [{', '.join(executed_models)}]. "
         )
+        if hybrid_res and hybrid_res.get("hybridStatus") == "HYBRID_FUSION_ACTIVE":
+            clinical_summary += " Longitudinal LSTM sequential attention fusion active."
         if deferred_models:
             clinical_summary += (
                 f"{len(deferred_models)} specialized models deferred due to missing clinical measurements "
@@ -761,6 +828,11 @@ class UnifiedAIOrchestrator:
             "heartDiseaseProbability": round(float(p_chd), 4) if p_chd is not None else None,
             "heartFailureProbability": round(float(p_hf), 4) if p_hf is not None else None,
             "strokeProbability": round(float(p_stroke), 4) if p_stroke is not None else None,
+            "hybridModel": hybrid_res,
+            "hybridStatus": hybrid_res.get("hybridStatus") if hybrid_res else "INACTIVE",
+            "fusionStrategy": hybrid_res.get("fusionStrategy") if hybrid_res else None,
+            "mcConfidenceInterval95": hybrid_res.get("uncertainty", {}).get("confidenceInterval95") if hybrid_res else None,
+            "dataCompleteness": hybrid_res.get("dataCompleteness") if hybrid_res else None,
             "heartHealth": {
                 "pumpingEfficiency": pumping_efficiency,
                 "ejectionFraction": ejection_fraction,
@@ -792,9 +864,9 @@ class UnifiedAIOrchestrator:
             ],
             
             # Metadata with honest provenance
-            "modelVersion": "v2.1-HonestOrchestrator",
+            "modelVersion": "v3.0-Hybrid-XGBoost-LSTM-Orchestrator",
             "predictionTimestamp": current_timestamp,
-            "provenanceNotice": "Evaluated with zero input fabrication. Deferred models require authentic diagnostic tests."
+            "provenanceNotice": "Evaluated with zero input fabrication. Deferred models require authentic diagnostic tests. Models trained on parametric synthetic clinical benchmarks [SYNTHETIC_DEMO]."
         }
 
     run_pipeline = orchestrate_prediction

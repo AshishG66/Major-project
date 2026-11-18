@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../config/db.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { logger } from '../config/logger.js';
-import { askHridyaAI, GEMINI_MODEL } from '../services/aiOrchestrator.js';
+import { askHridyaAI, askHridyaAIStream, GEMINI_MODEL } from '../services/aiOrchestrator.js';
 import { eventBus, EVENTS } from '../utils/eventBus.js';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
@@ -70,6 +70,63 @@ export const sendMessage = async (req: Request, res: Response) => {
         }
       }
     });
+  }
+};
+
+export const streamMessage = async (req: Request, res: Response) => {
+  const startTime = performance.now();
+  try {
+    const userId = (req as AuthRequest).user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
+
+    const { message, sessionId } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ success: false, message: 'Message content is required.' });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const result = await askHridyaAIStream(
+      userId,
+      sessionId,
+      message,
+      (chunk) => {
+        res.write(`data: ${JSON.stringify({ type: 'CHUNK', text: chunk })}\n\n`);
+      },
+      (stage) => {
+        res.write(`data: ${JSON.stringify({ type: 'STAGE', stage: stage.stage, text: stage.text })}\n\n`);
+      }
+    );
+
+    res.write(`data: ${JSON.stringify({
+      type: 'DONE',
+      sessionId: result.sessionId,
+      reply: result.reply,
+      agentType: result.agentType,
+      debug: result.debug,
+    })}\n\n`);
+    res.end();
+  } catch (error: any) {
+    logger.error(`Error in streamMessage: ${error.message}`);
+    const msg = error.message || 'Unknown error';
+    let statusCode = 500;
+    if (msg.includes('API_KEY_INVALID') || msg.includes('401')) statusCode = 401;
+    else if (msg.includes('403') || msg.includes('PERMISSION_DENIED')) statusCode = 403;
+    else if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) statusCode = 429;
+    else if (msg.includes('503') || msg.includes('overloaded')) statusCode = 503;
+    else if (msg.includes('timeout') || msg.includes('DEADLINE_EXCEEDED')) statusCode = 504;
+
+    res.write(`data: ${JSON.stringify({
+      type: 'ERROR',
+      statusCode,
+      message: msg,
+    })}\n\n`);
+    res.end();
   }
 };
 

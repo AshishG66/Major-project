@@ -6,28 +6,24 @@ import { logger } from '../config/logger.js';
 import { buildReportPdf } from '../utils/pdf.js';
 import { eventBus, EVENTS } from '../utils/eventBus.js';
 import { createAuditLogEntry } from '../services/hashChainService.js';
-import { updateDigitalTwinState } from '../services/digitalTwinService.js';
+import { updateDigitalTwinState, invalidateDigitalTwinCache } from '../services/digitalTwinService.js';
 import { checkAndTriggerAlerts } from '../services/alertService.js';
 import { generatePersonalizedPreventionPlan, generateFallbackPreventionPlan } from '../services/preventionService.js';
+import { backgroundQueue } from '../utils/backgroundQueue.js';
+import { invalidatePatientContextCache } from '../services/aiOrchestrator.js';
 import { extractClinicalReport } from '../services/clinicalReportExtractionService.js';
 import { calculateValidationMetrics, registerValidationCase, buildValidationReportPdf } from '../services/clinicalValidationService.js';
 import { analyzeClinicalReportFile, executeClinicalReportPrediction } from '../services/clinicalReport/index.js';
 
 export const getAiServiceUrl = () => {
   const envUrl = process.env.AI_SERVICE_URL || process.env.FASTAPI_URL;
-  if (!envUrl || envUrl === 'http://localhost:8000' || envUrl === 'http://127.0.0.1:8000') {
-    return process.env.NODE_ENV === 'production' 
-      ? 'https://hridayadarpana-ai.onrender.com' 
-      : (envUrl || 'http://127.0.0.1:8000');
+  if (envUrl && (envUrl.startsWith('http://') || envUrl.startsWith('https://'))) {
+    return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
   }
   if (envUrl === 'hridayadarpana-ai' || envUrl === 'http://hridayadarpana-ai') {
     return 'https://hridayadarpana-ai.onrender.com';
   }
-  let url = envUrl;
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = `https://${url}`;
-  }
-  return url.endsWith('/') ? url.slice(0, -1) : url;
+  return 'https://hridayadarpana-ai.onrender.com';
 };
 
 export const predictionInputSchema = z.object({
@@ -118,143 +114,142 @@ export function calculateClinicalFallbackRisk(factors: any, bmi: number) {
   };
 }
 
-export const createPrediction = async (req: Request, res: Response) => {
+export async function executePredictionCore(
+  validUserId: string,
+  factors: z.infer<typeof predictionInputSchema>,
+  onStage?: (stage: { stage: string; step: number; text: string }) => void
+) {
+  // Stage 1: Biometric Validation & Preprocessing
+  onStage?.({ stage: 'VALIDATING', step: 1, text: 'Validating patient biometric information...' });
+
+  const bmi = parseFloat((factors.weight / ((factors.height / 100) ** 2)).toFixed(1));
+  const genderInt = factors.gender === 'MALE' ? 0 : 1;
+  const ecgInt = factors.ecgResult === 'NORMAL' ? 0 : factors.ecgResult === 'ST_T_ABNORMAL' ? 1 : 2;
+  const chestPainInt = factors.chestPainType === 'TYPICAL' ? 0 : factors.chestPainType === 'ATYPICAL' ? 1 : factors.chestPainType === 'NON_ANGINAL' ? 2 : 3;
+
+  // Stage 2: Historical Longitudinal Visits Retrieval
+  onStage?.({ stage: 'FETCHING_HISTORY', step: 2, text: 'Retrieving longitudinal clinical history & prior visits...' });
+
+  let historyPayload: Array<{
+    systolicBP: number;
+    diastolicBP: number;
+    cholesterol: number;
+    bloodSugar: number;
+    heartRate: number;
+    bmi: number;
+    timestamp: string;
+  }> = [];
+
+  let pastPredictions: any[] = [];
   try {
-    const userId = (req as AuthRequest).user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    pastPredictions = await prisma.prediction.findMany({
+      where: { userId: validUserId },
+      orderBy: { createdAt: 'asc' },
+      include: { factors: true },
+      take: 10,
+    });
+
+    historyPayload = pastPredictions
+      .filter((p) => p.factors !== null)
+      .map((p) => ({
+        systolicBP: p.factors!.systolicBP,
+        diastolicBP: p.factors!.diastolicBP,
+        cholesterol: p.factors!.cholesterol,
+        bloodSugar: p.factors!.bloodSugar,
+        heartRate: p.factors!.heartRate,
+        bmi: p.factors!.bmi,
+        timestamp: p.createdAt.toISOString(),
+      }));
+  } catch (histErr: any) {
+    logger.warn(`Could not fetch prior patient visits for LSTM sequence: ${histErr.message}`);
+  }
+
+  // Stage 3: Running Hybrid ML Prediction
+  onStage?.({ stage: 'RUNNING_MODEL', step: 3, text: 'Executing hybrid XGBoost-LSTM risk models...' });
+
+  const fastApiPayload = {
+    age: factors.age,
+    gender: genderInt,
+    height: factors.height,
+    weight: factors.weight,
+    bmi,
+    systolicBP: factors.systolicBP,
+    diastolicBP: factors.diastolicBP,
+    cholesterol: factors.cholesterol,
+    heartRate: factors.heartRate,
+    bloodSugar: factors.bloodSugar,
+    ecgResult: ecgInt,
+    exerciseFrequency: factors.exerciseFrequency,
+    smoking: factors.smoking ? 1 : 0,
+    alcohol: factors.alcohol ? 1 : 0,
+    diabetes: factors.diabetes ? 1 : 0,
+    familyHistory: factors.familyHistory ? 1 : 0,
+    chestPainType: chestPainInt,
+    sleepDuration: factors.sleepDuration,
+    stressLevel: factors.stressLevel,
+    history: historyPayload,
+  };
+
+  const aiServiceUrl = getAiServiceUrl();
+  let predictionRes: any;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const response = await fetch(`${aiServiceUrl}/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fastApiPayload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AI Service returned status ${response.status}: ${errorText}`);
     }
 
-    const userExists = await prisma.user.findUnique({ where: { id: userId } });
-    if (!userExists) {
-      return res.status(401).json({ success: false, message: 'User account not found' });
-    }
-    const validUserId = userId;
+    predictionRes = await response.json();
+  } catch (err: any) {
+    logger.warn(`AI microservice unreachable on ${aiServiceUrl} (${err.message}). Engaging HridyaDarpan Clinical Risk Engine fallback.`);
+    predictionRes = calculateClinicalFallbackRisk(factors, bmi);
+  }
 
-    const parsed = predictionInputSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: parsed.error.format(),
-      });
-    }
+  const recs = predictionRes.recommendations || {
+    diet: ["Maintain DASH / Mediterranean diet low in saturated fats and refined sugars.", "Restrict daily sodium intake to under 1,500 - 2,000 mg."],
+    exercise: ["Engage in 150 minutes of moderate-intensity aerobic exercise weekly."],
+    lifestyle: ["Target 7-8 hours of restful sleep daily.", "Schedule annual lipid profiles and ECG screenings."],
+    weeklyGoal: "Complete 150 minutes of light active exercise.",
+  };
 
-    logger.info(`[Step 1 - API Request] Received prediction payload for user ${userId}: ${JSON.stringify(parsed.data)}`);
+  // Stage 4: Calculating Explainability & SHAP Attributions
+  onStage?.({ stage: 'EXPLAINABILITY', step: 4, text: 'Calculating Tree-SHAP drivers and attention weights...' });
 
-    const factors = parsed.data;
+  const healthScoreVal = Math.max(10, Math.min(100, Math.round(100 - predictionRes.riskScore)));
+  const shapExplanationData = predictionRes.featureImportance || predictionRes.contributions || [];
+  const plainExplanationText = predictionRes.clinicalSummary || predictionRes.plainExplanation || `Risk evaluated as ${predictionRes.riskLevel} (${predictionRes.riskScore}%).`;
+  const confidenceVal = predictionRes.isMlPrediction === false ? 0.0 : (predictionRes.predictionConfidence ?? 0.0);
 
-    // Calculate BMI
-    const bmi = parseFloat((factors.weight / ((factors.height / 100) ** 2)).toFixed(1));
+  const risk30Day: number | null = null;
+  const risk1Year: number | null = null;
+  const risk5Year: number | null = null;
+  const modelVersionStr = predictionRes.modelVersion || (predictionRes.isMlPrediction === false ? 'v2.1-HeuristicFallback' : 'v2.1-HonestOrchestrator');
 
-    // Map categories to integers for FastAPI classifier input
-    const genderInt = factors.gender === 'MALE' ? 0 : 1;
-    const ecgInt = factors.ecgResult === 'NORMAL' ? 0 : factors.ecgResult === 'ST_T_ABNORMAL' ? 1 : 2;
-    const chestPainInt = factors.chestPainType === 'TYPICAL' ? 0 : factors.chestPainType === 'ATYPICAL' ? 1 : factors.chestPainType === 'NON_ANGINAL' ? 2 : 3;
+  const horizonConfidence = {
+    day30: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
+    year1: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
+    year5: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
+    hybridModel: predictionRes.hybridModel || null,
+    hybridStatus: predictionRes.hybridStatus || 'INACTIVE',
+    fusionStrategy: predictionRes.fusionStrategy || null,
+    mcConfidenceInterval95: predictionRes.mcConfidenceInterval95 || null,
+    dataCompleteness: predictionRes.dataCompleteness || null,
+  };
 
-    const fastApiPayload = {
-      age: factors.age,
-      gender: genderInt,
-      height: factors.height,
-      weight: factors.weight,
-      bmi,
-      systolicBP: factors.systolicBP,
-      diastolicBP: factors.diastolicBP,
-      cholesterol: factors.cholesterol,
-      heartRate: factors.heartRate,
-      bloodSugar: factors.bloodSugar,
-      ecgResult: ecgInt,
-      exerciseFrequency: factors.exerciseFrequency,
-      smoking: factors.smoking ? 1 : 0,
-      alcohol: factors.alcohol ? 1 : 0,
-      diabetes: factors.diabetes ? 1 : 0,
-      familyHistory: factors.familyHistory ? 1 : 0,
-      chestPainType: chestPainInt,
-      sleepDuration: factors.sleepDuration,
-      stressLevel: factors.stressLevel,
-    };
+  // Stage 5: Updating Digital Twin & Batched Transaction Persistence
+  onStage?.({ stage: 'DIGITAL_TWIN', step: 5, text: 'Updating Digital Twin physiological state...' });
 
-    const aiServiceUrl = getAiServiceUrl();
-    logger.info(`[Step 2 - Dispatch to AI ML Engine] Sending request to ${aiServiceUrl}/predict`);
-    
-    // Call FastAPI /predict with Clinical Risk Fallback
-    let predictionRes: any;
-    try {
-      const response = await fetch(`${aiServiceUrl}/predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fastApiPayload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`AI Service returned status ${response.status}: ${errorText}`);
-      }
-
-      predictionRes = await response.json();
-      logger.info(`[Step 3 - ML Prediction Generated] RiskScore: ${predictionRes.riskScore}%, RiskLevel: ${predictionRes.riskLevel}, Model: ${predictionRes.modelVersion || 'v2.1'}`);
-    } catch (err: any) {
-      logger.warn(`AI microservice unreachable on ${aiServiceUrl} (${err.message}). Engaging HridyaDarpan Clinical Risk Engine fallback.`);
-      predictionRes = calculateClinicalFallbackRisk(factors, bmi);
-    }
-
-    // Call FastAPI /recommendations
-    let recommendationRes: any;
-    try {
-      const response = await fetch(`${aiServiceUrl}/recommendations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          riskLevel: predictionRes.riskLevel,
-          age: factors.age,
-          gender: genderInt,
-          systolicBP: factors.systolicBP,
-          diastolicBP: factors.diastolicBP,
-          cholesterol: factors.cholesterol,
-          bloodSugar: factors.bloodSugar,
-          bmi,
-          exerciseFrequency: factors.exerciseFrequency,
-          smoking: factors.smoking ? 1 : 0,
-        }),
-      });
-
-      if (response.ok) {
-        recommendationRes = await response.json();
-      }
-    } catch (err: any) {
-      logger.warn(`Failed to retrieve recommendations from AI service: ${err.message}`);
-    }
-
-    const fallbackRecs = {
-      diet: ["Maintain DASH / Mediterranean diet low in saturated fats and refined sugars.", "Restrict daily sodium intake to under 1,500 - 2,000 mg."],
-      exercise: ["Engage in 150 minutes of moderate-intensity aerobic exercise weekly."],
-      lifestyle: ["Target 7-8 hours of restful sleep daily.", "Schedule annual lipid profiles and ECG screenings."],
-      weeklyGoal: "Complete 150 minutes of light active exercise.",
-    };
-    
-    const recs: any = recommendationRes || predictionRes.recommendations || fallbackRecs;
-
-    // Scale Cardio Health Score: e.g., 100 - riskScore (which is weighted probability)
-    const healthScoreVal = Math.max(10, Math.min(100, Math.round(100 - predictionRes.riskScore)));
-
-    const shapExplanationData = predictionRes.featureImportance || predictionRes.contributions || [];
-    const plainExplanationText = predictionRes.clinicalSummary || predictionRes.plainExplanation || `Risk evaluated as ${predictionRes.riskLevel} (${predictionRes.riskScore}%).`;
-    const confidenceVal = predictionRes.isMlPrediction === false ? 0.0 : (predictionRes.predictionConfidence ?? 0.0);
-
-    // Multi-Horizon Risk Probabilities: Disable unsupported fixed multiplier estimates
-    const risk30Day: number | null = null;
-    const risk1Year: number | null = null;
-    const risk5Year: number | null = null;
-    const modelVersionStr = predictionRes.modelVersion || (predictionRes.isMlPrediction === false ? 'v2.1-HeuristicFallback' : 'v2.1-HonestOrchestrator');
-
-    const horizonConfidence = {
-      day30: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
-      year1: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
-      year5: { available: false, status: 'UNSUPPORTED', note: 'Requires longitudinal survival cohort data' },
-    };
-
-    // Save predictions, factors, and lifestyle goals sequentially
-    const pred = await prisma.prediction.create({
+  const [pred] = await prisma.$transaction([
+    prisma.prediction.create({
       data: {
         userId: validUserId,
         riskScore: predictionRes.riskScore,
@@ -268,12 +263,194 @@ export const createPrediction = async (req: Request, res: Response) => {
         risk5Year,
         modelVersion: modelVersionStr,
         horizonConfidence: horizonConfidence as any,
+        factors: {
+          create: {
+            age: factors.age,
+            gender: factors.gender,
+            height: factors.height,
+            weight: factors.weight,
+            bmi,
+            systolicBP: factors.systolicBP,
+            diastolicBP: factors.diastolicBP,
+            cholesterol: factors.cholesterol,
+            heartRate: factors.heartRate,
+            bloodSugar: factors.bloodSugar,
+            ecgResult: factors.ecgResult,
+            exerciseFrequency: factors.exerciseFrequency,
+            smoking: factors.smoking,
+            alcohol: factors.alcohol,
+            diabetes: factors.diabetes,
+            familyHistory: factors.familyHistory,
+            chestPainType: factors.chestPainType,
+            sleepDuration: factors.sleepDuration,
+            stressLevel: factors.stressLevel,
+          },
+        },
       },
-    });
-
-    await prisma.predictionFactors.create({
+      include: {
+        factors: true,
+      },
+    }),
+    prisma.healthScore.create({
       data: {
-        predictionId: pred.id,
+        userId: validUserId,
+        score: healthScoreVal,
+        cardioIndex: parseFloat((100 - predictionRes.riskScore * 0.8).toFixed(1)),
+      },
+    }),
+  ]);
+
+  // Invalidate patient context and digital twin caches immediately
+  invalidatePatientContextCache(validUserId);
+  invalidateDigitalTwinCache(validUserId);
+
+  // Update Digital Twin state with preloaded predictions (eliminates 2 duplicate queries!)
+  const twinStatePromise = updateDigitalTwinState(
+    validUserId,
+    {
+      heartRate: factors.heartRate,
+      systolicBP: factors.systolicBP,
+      diastolicBP: factors.diastolicBP,
+      ecgStatus: factors.ecgResult,
+      activityMins: factors.exerciseFrequency * 30,
+      sleepHours: factors.sleepDuration,
+    },
+    {
+      latestPrediction: pred,
+      previousPrediction: pastPredictions[pastPredictions.length - 1] || null,
+    }
+  ).catch((err: any) => logger.warn(`Digital Twin update deferred: ${err.message}`));
+
+  // Stage 6: Preparing Report & Clinical Prevention Plan
+  onStage?.({ stage: 'PREPARING_REPORT', step: 6, text: 'Preparing clinical recommendations & prevention plan...' });
+
+  const personalizedPreventionPlan = generatePersonalizedPreventionPlan(
+    validUserId,
+    pred,
+    factors
+  );
+
+  // Background non-blocking deferred writes using reliable queue with retry propagation
+  backgroundQueue.enqueue(
+    `plans_persist_${pred.id}`,
+    async () => {
+      // Execute atomically inside transaction so partial failures roll back cleanly before retry
+      await prisma.$transaction(async (tx) => {
+        await tx.dietPlan.updateMany({
+          where: { userId: validUserId, isActive: true },
+          data: { isActive: false },
+        });
+        await tx.exercisePlan.updateMany({
+          where: { userId: validUserId, isActive: true },
+          data: { isActive: false },
+        });
+        await tx.dietPlan.create({
+          data: {
+            userId: validUserId,
+            calories: factors.gender === 'MALE' ? 2200 : 1800,
+            macroCarbs: 220,
+            macroPro: 90,
+            macroFat: 60,
+            planData: (recs.diet || recs) as any,
+            isActive: true,
+          },
+        });
+        await tx.exercisePlan.create({
+          data: {
+            userId: validUserId,
+            targetMins: factors.exerciseFrequency * 30 || 150,
+            planData: (recs.exercise || recs) as any,
+            isActive: true,
+          },
+        });
+      });
+    },
+    {
+      maxRetries: 2,
+      onError: (err, attempt, exhausted) => {
+        if (exhausted) {
+          logger.error(`[BackgroundQueue] Plan persistence permanently failed for prediction ${pred.id} after ${attempt} retries: ${err.message}`);
+        }
+      },
+    }
+  );
+
+  backgroundQueue.enqueue(
+    `alerts_check_${pred.id}`,
+    async () => {
+      await checkAndTriggerAlerts(
+        {
+          userId: validUserId,
+          riskLevel: predictionRes.riskLevel,
+          riskScore: predictionRes.riskScore,
+          systolicBP: factors.systolicBP,
+          diastolicBP: factors.diastolicBP,
+          heartRate: factors.heartRate,
+          factors,
+        },
+        { throwOnError: true }
+      );
+    },
+    {
+      maxRetries: 2,
+      onError: (err, attempt, exhausted) => {
+        if (exhausted) {
+          logger.error(`[BackgroundQueue] Alert threshold check permanently failed for prediction ${pred.id} after ${attempt} retries: ${err.message}`);
+        }
+      },
+    }
+  );
+
+  backgroundQueue.enqueue(
+    `audit_prediction_${pred.id}`,
+    async () => {
+      const log = await createAuditLogEntry(
+        {
+          userId: validUserId,
+          patientId: validUserId,
+          eventType: 'RUN_PREDICTION',
+          action: 'EXECUTE_CARDIAC_PREDICTION',
+          details: `Executed multi-horizon cardiac risk prediction. Risk: ${predictionRes.riskLevel} (${predictionRes.riskScore}%), Model Version: ${modelVersionStr}.`,
+        },
+        { throwOnError: true }
+      );
+      if (!log) {
+        throw new Error('Audit log creation failed to persist record to database');
+      }
+    },
+    {
+      maxRetries: 3,
+      onError: (err, attempt, exhausted) => {
+        if (exhausted) {
+          logger.error(`[AUDIT_CRITICAL_FAILURE] Routine prediction audit log for prediction ${pred.id} permanently failed after ${attempt} retries: ${err.message}`);
+        }
+      },
+    }
+  );
+
+  eventBus.emit(EVENTS.PREDICTION_CREATED, {
+    userId: validUserId,
+    prediction: pred,
+    healthScore: healthScoreVal,
+  });
+
+  await twinStatePromise;
+
+  return {
+    success: true,
+    prediction: {
+      id: pred.id,
+      riskLevel: pred.riskLevel,
+      riskScore: pred.riskScore,
+      risk30Day,
+      risk1Year,
+      risk5Year,
+      modelVersion: modelVersionStr,
+      horizonConfidence,
+      confidenceScore: confidenceVal,
+      shapExplanation: shapExplanationData,
+      createdAt: pred.createdAt,
+      factors: {
         age: factors.age,
         gender: factors.gender,
         height: factors.height,
@@ -294,140 +471,70 @@ export const createPrediction = async (req: Request, res: Response) => {
         sleepDuration: factors.sleepDuration,
         stressLevel: factors.stressLevel,
       },
-    });
+      hybridModel: predictionRes.hybridModel || null,
+      hybridStatus: predictionRes.hybridStatus || 'INACTIVE',
+      fusionStrategy: predictionRes.fusionStrategy || null,
+      mcConfidenceInterval95: predictionRes.mcConfidenceInterval95 || null,
+      dataCompleteness: predictionRes.dataCompleteness || null,
+    },
+    healthScore: healthScoreVal,
+    recommendations: recs,
+    preventionPlan: personalizedPreventionPlan,
+  };
+}
 
-    // Update Health Score
-    await prisma.healthScore.create({
-      data: {
-        userId: validUserId,
-        score: healthScoreVal,
-        cardioIndex: parseFloat((100 - predictionRes.riskScore * 0.8).toFixed(1)),
-      },
-    });
+export const createPrediction = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as AuthRequest).user;
+    if (!caller?.id) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
+    const parsed = predictionInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: parsed.error.format(),
+      });
+    }
 
-    // Deactivate older plans
-    await prisma.dietPlan.updateMany({
-      where: { userId: validUserId, isActive: true },
-      data: { isActive: false },
-    });
-
-    await prisma.exercisePlan.updateMany({
-      where: { userId: validUserId, isActive: true },
-      data: { isActive: false },
-    });
-
-    // Save new diet and exercise plans
-    const diet = await prisma.dietPlan.create({
-      data: {
-        userId: validUserId,
-        calories: factors.gender === 'MALE' ? 2200 : 1800,
-        macroCarbs: 220,
-        macroPro: 90,
-        macroFat: 60,
-        planData: (recs.diet || recs) as any,
-        isActive: true,
-      },
-    });
-
-    const exercise = await prisma.exercisePlan.create({
-      data: {
-        userId: validUserId,
-        targetMins: factors.exerciseFrequency * 30 || 150,
-        planData: (recs.exercise || recs) as any,
-        isActive: true,
-      },
-    });
-
-    const savedData = { prediction: pred, diet, exercise };
-
-    // Asynchronously update Digital Twin State
-    updateDigitalTwinState(validUserId, {
-      heartRate: factors.heartRate,
-      systolicBP: factors.systolicBP,
-      diastolicBP: factors.diastolicBP,
-      ecgStatus: factors.ecgResult,
-      activityMins: factors.exerciseFrequency * 30,
-      sleepHours: factors.sleepDuration,
-    }).catch((err: any) => logger.warn(`Digital Twin update deferred: ${err.message}`));
-
-    // Asynchronously check dynamic alert thresholds
-    checkAndTriggerAlerts({
-      userId: validUserId,
-      riskLevel: predictionRes.riskLevel,
-      riskScore: predictionRes.riskScore,
-      systolicBP: factors.systolicBP,
-      diastolicBP: factors.diastolicBP,
-      heartRate: factors.heartRate,
-      factors,
-    }).catch((err: any) => logger.warn(`Alert check deferred: ${err.message}`));
-
-    // Record SHA-256 Tamper-Evident Audit Log Entry
-    createAuditLogEntry({
-      userId: validUserId,
-      patientId: validUserId,
-      eventType: 'RUN_PREDICTION',
-      action: 'EXECUTE_CARDIAC_PREDICTION',
-      details: `Executed multi-horizon cardiac risk prediction. Risk: ${predictionRes.riskLevel} (${predictionRes.riskScore}%), 30-Day: ${risk30Day}%, 1-Year: ${risk1Year}%, 5-Year: ${risk5Year}%. Model Version: ${modelVersionStr}.`,
-    }).catch((err: any) => logger.warn(`AuditLog write deferred: ${err.message}`));
-
-    logger.info(`[Step 4 - DB Transaction Saved] Saved prediction ID ${savedData.prediction.id} to PostgreSQL database`);
-
-    // Emit prediction event asynchronously through EventBus
-    eventBus.emit(EVENTS.PREDICTION_CREATED, {
-      userId: validUserId,
-      prediction: savedData.prediction,
-      healthScore: healthScoreVal,
-    });
-
-    const personalizedPreventionPlan = generatePersonalizedPreventionPlan(
-      validUserId,
-      savedData.prediction,
-      factors
-    );
-
-    res.status(200).json({
-      success: true,
-      prediction: {
-        id: savedData.prediction.id,
-        riskLevel: savedData.prediction.riskLevel,
-        riskScore: savedData.prediction.riskScore,
-        risk30Day,
-        risk1Year,
-        risk5Year,
-        modelVersion: modelVersionStr,
-        horizonConfidence,
-        confidenceScore: confidenceVal,
-        shapExplanation: shapExplanationData,
-        createdAt: savedData.prediction.createdAt,
-        factors: {
-          age: factors.age,
-          gender: factors.gender,
-          height: factors.height,
-          weight: factors.weight,
-          bmi,
-          systolicBP: factors.systolicBP,
-          diastolicBP: factors.diastolicBP,
-          cholesterol: factors.cholesterol,
-          heartRate: factors.heartRate,
-          bloodSugar: factors.bloodSugar,
-          ecgResult: factors.ecgResult,
-          exerciseFrequency: factors.exerciseFrequency,
-          smoking: factors.smoking,
-          alcohol: factors.alcohol,
-          diabetes: factors.diabetes,
-          familyHistory: factors.familyHistory,
-          chestPainType: factors.chestPainType,
-          sleepDuration: factors.sleepDuration,
-          stressLevel: factors.stressLevel,
-        },
-      },
-      healthScore: healthScoreVal,
-      recommendations: recs,
-      preventionPlan: personalizedPreventionPlan,
-    });
+    const result = await executePredictionCore(caller.id, parsed.data);
+    res.status(200).json(result);
   } catch (error: any) {
     logger.error(`Error creating prediction: ${error.message}`);
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createPredictionStream = async (req: Request, res: Response) => {
+  const caller = (req as AuthRequest).user;
+  if (!caller?.id) {
+    return res.status(401).json({ success: false, message: 'Unauthenticated' });
+  }
+  const parsed = predictionInputSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: parsed.error.format(),
+    });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  try {
+    const result = await executePredictionCore(caller.id, parsed.data, (stage) => {
+      res.write(`data: ${JSON.stringify(stage)}\n\n`);
+    });
+
+    res.write(`data: ${JSON.stringify({ stage: 'COMPLETE', step: 7, text: 'Scan complete', result })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ stage: 'ERROR', error: err.message })}\n\n`);
+    res.end();
   }
 };
 
@@ -668,6 +775,11 @@ export const downloadReport = async (req: Request, res: Response) => {
       prediction.factors
     );
 
+    // Query digital twin state for longitudinal telemetry in the report
+    const digitalTwin = await prisma.digitalTwinState.findUnique({
+      where: { userId: prediction.userId },
+    });
+
     const dateStr = prediction.createdAt
       ? new Date(prediction.createdAt).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
@@ -690,15 +802,17 @@ export const downloadReport = async (req: Request, res: Response) => {
         confidenceScore: prediction.confidenceScore,
         plainExplanation: prediction.plainExplanation,
         shapExplanation: prediction.shapExplanation,
-        modelVersion: prediction.modelVersion || 'v2.1-ClinicalEnsemble',
+        modelVersion: prediction.modelVersion || 'v3.0-Hybrid-XGBoost-LSTM',
         risk30Day: prediction.risk30Day,
         risk1Year: prediction.risk1Year,
         risk5Year: prediction.risk5Year,
         modelName: prediction.modelName,
+        horizonConfidence: prediction.horizonConfidence,
         createdAt: prediction.createdAt,
       },
       factors: prediction.factors as any,
       preventionPlan,
+      digitalTwinState: digitalTwin,
     });
   } catch (error: any) {
     logger.error(`Error downloading report PDF: ${error.message}`);

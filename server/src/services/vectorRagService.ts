@@ -5,6 +5,11 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const EMBEDDING_MODEL = 'text-embedding-004';
 const EMBEDDING_DIMENSION = 768;
 
+// Non-patient-specific caches for clinical guidelines & vector embeddings (15-min TTL)
+const embeddingCache = new Map<string, number[]>();
+const ragContextCache = new Map<string, { context: string; chunksUsed: number; timestamp: number }>();
+const RAG_CACHE_TTL_MS = 15 * 60 * 1000;
+
 // ─── Clinical Guideline Chunks for Seeding ───
 const CLINICAL_KNOWLEDGE_CHUNKS = [
   // Blood Pressure
@@ -82,16 +87,23 @@ const CLINICAL_KNOWLEDGE_CHUNKS = [
  * Returns a 768-dimensional float array.
  */
 async function embedText(text: string): Promise<number[]> {
+  const cached = embeddingCache.get(text);
+  if (cached) {
+    return cached;
+  }
+
   if (!GEMINI_API_KEY) {
     const hash = simpleHash(text);
-    return Array.from({ length: EMBEDDING_DIMENSION }, (_, i) => 
+    const vec = Array.from({ length: EMBEDDING_DIMENSION }, (_, i) => 
       Math.sin(hash * (i + 1) * 0.001) * 0.5
     );
+    embeddingCache.set(text, vec);
+    return vec;
   }
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${GEMINI_API_KEY}`;
     const response = await fetch(url, {
@@ -108,6 +120,7 @@ async function embedText(text: string): Promise<number[]> {
     if (response.ok) {
       const data = (await response.json()) as any;
       if (data?.embedding?.values) {
+        embeddingCache.set(text, data.embedding.values);
         return data.embedding.values;
       }
     }
@@ -116,9 +129,11 @@ async function embedText(text: string): Promise<number[]> {
   }
 
   const hash = simpleHash(text);
-  return Array.from({ length: EMBEDDING_DIMENSION }, (_, i) => 
+  const fallbackVec = Array.from({ length: EMBEDDING_DIMENSION }, (_, i) => 
     Math.sin(hash * (i + 1) * 0.001) * 0.5
   );
+  embeddingCache.set(text, fallbackVec);
+  return fallbackVec;
 }
 
 function simpleHash(str: string): number {
@@ -213,18 +228,30 @@ export async function semanticSearch(query: string, topK: number = 5): Promise<{
  * Format retrieved chunks into a context string for LLM injection.
  */
 export async function retrieveRAGContext(query: string): Promise<{ context: string; chunksUsed: number }> {
+  const normalizedKey = query.toLowerCase().trim();
+  const cached = ragContextCache.get(normalizedKey);
+  const now = Date.now();
+  if (cached && (now - cached.timestamp) < RAG_CACHE_TTL_MS) {
+    return { context: cached.context, chunksUsed: cached.chunksUsed };
+  }
+
   const results = await semanticSearch(query, 5);
   
   if (results.length === 0) {
-    return {
+    const fallback = {
       context: 'General Cardiac Prevention: Risk factors like age, BMI, family history, and smoking status are cumulative. Regular screening and maintaining active lifestyle habits are core to preventative care.',
       chunksUsed: 0,
+      timestamp: now,
     };
+    ragContextCache.set(normalizedKey, fallback);
+    return { context: fallback.context, chunksUsed: 0 };
   }
 
   const context = results
     .map((r, i) => `[${i + 1}] ${r.title} (relevance: ${(r.similarity * 100).toFixed(1)}%)\n${r.content}`)
     .join('\n\n');
 
+  const entry = { context, chunksUsed: results.length, timestamp: now };
+  ragContextCache.set(normalizedKey, entry);
   return { context, chunksUsed: results.length };
 }
