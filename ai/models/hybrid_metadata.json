@@ -1,0 +1,63 @@
+{
+  "pipeline_version": "v3.0_hybrid_xgboost_lstm",
+  "provenance": "SYNTHETIC_DEMO",
+  "clinical_validation": "PENDING_INSTITUTIONAL_TRIAL",
+  "dataset_size": 1500,
+  "split": {
+    "train": 1200,
+    "val": 150,
+    "test": 150
+  },
+  "metrics": {
+    "xgboost_static_branch": {
+      "accuracy": 0.6933,
+      "precision": 0.6988,
+      "recall_sensitivity": 0.7342,
+      "specificity": 0.6479,
+      "f1_score": 0.716,
+      "roc_auc": 0.7647,
+      "brier_score": 0.1982,
+      "confusion_matrix": {
+        "tn": 46,
+        "fp": 25,
+        "fn": 21,
+        "tp": 58
+      }
+    },
+    "lstm_sequential_branch": {
+      "accuracy": 0.7267,
+      "precision": 0.75,
+      "recall_sensitivity": 0.7215,
+      "specificity": 0.7324,
+      "f1_score": 0.7355,
+      "roc_auc": 0.8083,
+      "brier_score": 0.1796,
+      "confusion_matrix": {
+        "tn": 52,
+        "fp": 19,
+        "fn": 22,
+        "tp": 57
+      }
+    },
+    "hybrid_fused_system": {
+      "accuracy": 0.7333,
+      "precision": 0.7671,
+      "recall_sensitivity": 0.7089,
+      "specificity": 0.7606,
+      "f1_score": 0.7368,
+      "roc_auc": 0.8237,
+      "brier_score": 0.176,
+      "confusion_matrix": {
+        "tn": 54,
+        "fp": 17,
+        "fn": 23,
+        "tp": 56
+      }
+    }
+  },
+  "meta_learner_weights": {
+    "coef_xgb": 0.9511,
+    "coef_lstm": 2.9268,
+    "intercept": -1.9633
+  }
+}
