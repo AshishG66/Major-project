@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useEffect, useState, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Environment } from '@react-three/drei';
+import { OrbitControls, useGLTF } from '@react-three/drei';
 import { SkeletonUtils } from 'three-stdlib';
 import * as THREE from 'three';
 import { DigitalTwinSimulationState } from '../types/digitalTwin';
@@ -554,6 +554,30 @@ function OfficialGlbDigitalTwinHeart({
     }
   });
 
+  // Resource Disposal Cleanup on Unmount to prevent GPU memory accumulation
+  useEffect(() => {
+    return () => {
+      if (clonedScene) {
+        clonedScene.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            if (mesh.material) {
+              if (Array.isArray(mesh.material)) {
+                mesh.material.forEach((m) => m.dispose());
+              } else {
+                mesh.material.dispose();
+              }
+            }
+          }
+        });
+      }
+      if (mixerRef.current) {
+        mixerRef.current.stopAllAction();
+        mixerRef.current.uncacheRoot(clonedScene);
+      }
+    };
+  }, [clonedScene]);
+
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
       {/* 3D Arterial Blood Corpuscle Particle System (FlowMode aware) */}
@@ -761,11 +785,6 @@ export default function ThreeHeart({
         className="w-full h-full"
       >
         <DynamicCameraAndControlsFitter modelSphereRadius={sphereRadius} />
-
-        {/* Environment HDRI for Realistic PBR Metalness/Roughness Surface Detail */}
-        <Suspense fallback={null}>
-          <Environment preset="studio" />
-        </Suspense>
 
         {/* Ambient & Professional Soft Rim Lighting (Optimized for Mobile) */}
         <ambientLight intensity={isMobile ? 0.9 : 0.75} />

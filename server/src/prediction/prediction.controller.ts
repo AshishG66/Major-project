@@ -6,7 +6,7 @@ import { logger } from '../config/logger.js';
 import { buildReportPdf } from '../utils/pdf.js';
 import { eventBus, EVENTS } from '../utils/eventBus.js';
 import { createAuditLogEntry } from '../services/hashChainService.js';
-import { updateDigitalTwinState, invalidateDigitalTwinCache } from '../services/digitalTwinService.js';
+import { updateDigitalTwinState, invalidateDigitalTwinCache, getCachedDigitalTwinState } from '../services/digitalTwinService.js';
 import { checkAndTriggerAlerts } from '../services/alertService.js';
 import { generatePersonalizedPreventionPlan, generateFallbackPreventionPlan } from '../services/preventionService.js';
 import { backgroundQueue } from '../utils/backgroundQueue.js';
@@ -142,12 +142,33 @@ export async function executePredictionCore(
 
   let pastPredictions: any[] = [];
   try {
-    pastPredictions = await prisma.prediction.findMany({
+    const rawPast = await prisma.prediction.findMany({
       where: { userId: validUserId },
-      orderBy: { createdAt: 'asc' },
-      include: { factors: true },
+      orderBy: { createdAt: 'desc' },
       take: 10,
+      select: {
+        id: true,
+        createdAt: true,
+        riskScore: true,
+        riskLevel: true,
+        factors: {
+          select: {
+            systolicBP: true,
+            diastolicBP: true,
+            cholesterol: true,
+            bloodSugar: true,
+            heartRate: true,
+            bmi: true,
+            ecgResult: true,
+            exerciseFrequency: true,
+            sleepDuration: true,
+            smoking: true,
+          },
+        },
+      },
     });
+
+    pastPredictions = rawPast.slice().reverse();
 
     historyPayload = pastPredictions
       .filter((p) => p.factors !== null)
@@ -190,27 +211,39 @@ export async function executePredictionCore(
     history: historyPayload,
   };
 
-  const aiServiceUrl = getAiServiceUrl();
-  let predictionRes: any;
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    const response = await fetch(`${aiServiceUrl}/predict`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fastApiPayload),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
+  const primaryUrl = getAiServiceUrl();
+  const candidateUrls = [primaryUrl];
+  if (primaryUrl.includes('onrender.com')) {
+    candidateUrls.push('http://localhost:8000');
+  } else if (!primaryUrl.includes('onrender.com')) {
+    candidateUrls.push('https://hridayadarpana-ai.onrender.com');
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI Service returned status ${response.status}: ${errorText}`);
+  let predictionRes: any = null;
+  for (const url of candidateUrls) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const response = await fetch(`${url}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fastApiPayload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        predictionRes = await response.json();
+        break;
+      }
+      logger.warn(`AI Service at ${url} returned status ${response.status}`);
+    } catch (err: any) {
+      logger.warn(`AI microservice at ${url} unreachable or timed out (${err.message}).`);
     }
+  }
 
-    predictionRes = await response.json();
-  } catch (err: any) {
-    logger.warn(`AI microservice unreachable on ${aiServiceUrl} (${err.message}). Engaging HridyaDarpan Clinical Risk Engine fallback.`);
+  if (!predictionRes) {
+    logger.warn('All AI microservice endpoints unreachable. Engaging HridyaDarpan Clinical Risk Engine fallback.');
     predictionRes = calculateClinicalFallbackRisk(factors, bmi);
   }
 
@@ -248,7 +281,7 @@ export async function executePredictionCore(
   // Stage 5: Updating Digital Twin & Batched Transaction Persistence
   onStage?.({ stage: 'DIGITAL_TWIN', step: 5, text: 'Updating Digital Twin physiological state...' });
 
-  const [pred] = await prisma.$transaction([
+  const [pred] = await Promise.all([
     prisma.prediction.create({
       data: {
         userId: validUserId,
@@ -300,11 +333,10 @@ export async function executePredictionCore(
     }),
   ]);
 
-  // Invalidate patient context and digital twin caches immediately
+  // Invalidate patient context cache immediately
   invalidatePatientContextCache(validUserId);
-  invalidateDigitalTwinCache(validUserId);
 
-  // Update Digital Twin state with preloaded predictions (eliminates 2 duplicate queries!)
+  // Update Digital Twin state with preloaded predictions (eliminates duplicate queries & utilizes memory cache)
   const twinStatePromise = updateDigitalTwinState(
     validUserId,
     {
@@ -319,7 +351,10 @@ export async function executePredictionCore(
       latestPrediction: pred,
       previousPrediction: pastPredictions[pastPredictions.length - 1] || null,
     }
-  ).catch((err: any) => logger.warn(`Digital Twin update deferred: ${err.message}`));
+  ).catch((err: any) => {
+    logger.warn(`Digital Twin update deferred: ${err.message}`);
+    return getCachedDigitalTwinState(validUserId);
+  });
 
   // Stage 6: Preparing Report & Clinical Prevention Plan
   onStage?.({ stage: 'PREPARING_REPORT', step: 6, text: 'Preparing clinical recommendations & prevention plan...' });
@@ -334,17 +369,17 @@ export async function executePredictionCore(
   backgroundQueue.enqueue(
     `plans_persist_${pred.id}`,
     async () => {
-      // Execute atomically inside transaction so partial failures roll back cleanly before retry
-      await prisma.$transaction(async (tx) => {
-        await tx.dietPlan.updateMany({
+      // Execute atomically in a batch transaction for Neon PgBouncer
+      await prisma.$transaction([
+        prisma.dietPlan.updateMany({
           where: { userId: validUserId, isActive: true },
           data: { isActive: false },
-        });
-        await tx.exercisePlan.updateMany({
+        }),
+        prisma.exercisePlan.updateMany({
           where: { userId: validUserId, isActive: true },
           data: { isActive: false },
-        });
-        await tx.dietPlan.create({
+        }),
+        prisma.dietPlan.create({
           data: {
             userId: validUserId,
             calories: factors.gender === 'MALE' ? 2200 : 1800,
@@ -354,16 +389,16 @@ export async function executePredictionCore(
             planData: (recs.diet || recs) as any,
             isActive: true,
           },
-        });
-        await tx.exercisePlan.create({
+        }),
+        prisma.exercisePlan.create({
           data: {
             userId: validUserId,
             targetMins: factors.exerciseFrequency * 30 || 150,
             planData: (recs.exercise || recs) as any,
             isActive: true,
           },
-        });
-      });
+        }),
+      ]);
     },
     {
       maxRetries: 2,

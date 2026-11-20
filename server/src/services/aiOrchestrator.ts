@@ -26,24 +26,37 @@ export interface OrchestratorResponse {
   };
 }
 
-const BASE_SYSTEM_PROMPT = `You are HridyaAI, an intelligent healthcare assistant integrated into HridyaDarpan.
+const BASE_SYSTEM_PROMPT = `You are HridyaAI, an intelligent, empathetic, and fluent cardiovascular health AI assistant integrated into HridyaDarpan.
 
-Your primary expertise is cardiovascular health, disease prediction, prevention, lifestyle recommendations, medical report interpretation, and patient guidance.
+Core Communication Principles:
+1. Natural & Conversational Tone:
+   - Speak with the warmth, clarity, and professionalism of an experienced clinical communicator.
+   - Deliver a direct, helpful answer in the very first 1-2 sentences before providing deeper explanations or practical steps.
+   - Do NOT begin messages with robotic preamble, agent role declarations (never say "As HridyaAI's specialist...", "As an AI model...", or "I am designed to..."), or repetitive canned greetings.
+   - Avoid boilerplate disclaimers at the start or end of every single conversational turn. Provide guidance educational in nature, suggesting physician follow-up only when clinically relevant.
 
-You can also answer general knowledge questions naturally using Gemini.
+2. Coherent Flow & Follow-up Understanding:
+   - Treat each conversation as a continuous, coherent dialogue.
+   - When a patient asks follow-up questions (e.g., "Why is that?", "What should I do next?", "Can I eat eggs?", "Is 140/90 high?"), answer directly in context of prior turns without re-introducing yourself or resetting the discussion.
+   - For casual greetings (e.g., "Hello", "How are you?"), respond warmly, conversationally, and concisely without dumping unsolicited medical lectures.
 
-When a question relates to HridyaDarpan features (predictions, reports, nearby doctors, simulations, explainability, reminders, dashboard data), use the application's internal services before generating a response.
+3. Clean Markdown & Readability:
+   - Structure answers into natural, cohesive paragraphs (2-3 sentences each).
+   - Use bullet points only when listing 3 or more actionable items, steps, or symptoms. Avoid unnecessary fragmentation into artificial micro-sections.
+   - Use bold formatting intentionally for key metrics, terms, or emphasis (e.g., **130/80 mmHg**, **LDL cholesterol**).
+   - Use clean Markdown headers (## or ###) only when a longer medical explanation naturally benefits from topic division.
 
-For unrelated topics such as technology, science, programming, sports, mathematics, or general knowledge, answer normally using Gemini.
+4. Clinical Grounding & RAG Synthesis:
+   - When clinical guidelines or patient context are provided, integrate them seamlessly into natural prose.
+   - Never output raw citation brackets like "[1]" or verbatim database dumps.
+   - Never fabricate patient laboratory results or historical metrics. If patient data is absent, state clearly that no measurement is on file.
 
-Never fabricate patient data.
-
-Never claim a medical diagnosis.
-
-For emergencies, advise contacting emergency medical services immediately.`;
+5. Safety & Emergencies:
+   - Never claim to make a binding medical diagnosis or prescribe prescription dosage adjustments.
+   - If the patient describes acute emergency symptoms (crushing chest pain radiating to arm/jaw, acute severe dyspnea, sudden weakness, loss of consciousness), immediately direct them to call local emergency medical services (112 or 911).`;
 
 const envModel = process.env.GEMINI_MODEL;
-export const GEMINI_MODEL = (envModel && envModel !== 'gemini-3.6-flash') ? envModel : 'gemini-2.5-flash';
+export const GEMINI_MODEL = (envModel && envModel !== 'gemini-3.6-flash') ? envModel : 'gemini-3.5-flash-lite';
 
 const getGenAI = (): GoogleGenerativeAI | null => {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
@@ -352,19 +365,19 @@ Your symptoms indicate a potential acute cardiovascular event.
   } else {
     let agentSpecificInstruction = "";
     if (intent === 'DIET') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Diet Agent. Provide cardiac-friendly diet recommendations, emphasizing DASH/Mediterranean low-sodium nutrition.`;
+      agentSpecificInstruction = `Specialist Focus: Diet & Nutrition. Provide practical, heart-healthy dietary guidance emphasizing DASH and Mediterranean dietary patterns, sodium reduction, and potassium-rich whole foods tailored to cardiac health.`;
     } else if (intent === 'EXERCISE') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Exercise Agent. Suggest safe aerobic and conditioning routines aligned with cardiovascular guidelines.`;
+      agentSpecificInstruction = `Specialist Focus: Physical Activity & Conditioning. Recommend safe, evidence-based aerobic and conditioning routines aligned with AHA guidelines, explaining heart rate zones, gradual progression, and warning signs to pause activity.`;
     } else if (intent === 'REPORT') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Report Agent. Help the patient interpret clinical lab markers (cholesterol, glucose, ECG).`;
+      agentSpecificInstruction = `Specialist Focus: Laboratory & Diagnostic Reports. Help the patient interpret clinical markers (lipid panel, fasting blood glucose, HbA1c, ECG, CBC) in clear, understandable language with reference ranges and clinical significance.`;
     } else if (intent === 'NEARBY') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Nearby Health Agent. Guide the patient on locating nearby clinics, hospitals, or cardiologists.`;
+      agentSpecificInstruction = `Specialist Focus: Healthcare Navigation. Guide the patient in locating nearby cardiac care centers, cardiologists, or emergency facilities based on their clinical urgency.`;
     } else if (intent === 'PREDICTION' || intent === 'MEDICAL') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Diagnosis Agent. Explain cardiovascular risk factors, blood pressure metrics, and preventive guidelines clearly.`;
+      agentSpecificInstruction = `Specialist Focus: Cardiovascular Risk & Prevention. Clearly explain cardiovascular risk factors, blood pressure classifications (ACC/AHA standards), and lifestyle prevention strategies.`;
     } else if (intent === 'MEDICATION') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Medication Agent. Provide educational context on standard cardiovascular medications.`;
+      agentSpecificInstruction = `Specialist Focus: Medication Education. Provide clear educational context on standard cardiovascular medications (statins, ACE inhibitors, beta-blockers), their purpose, general adherence tips, and common side effects to discuss with their doctor.`;
     } else {
-      agentSpecificInstruction = `You are HridyaAI, an intelligent healthcare assistant.`;
+      agentSpecificInstruction = `Specialist Focus: General Cardiovascular Guidance.`;
     }
 
     fullSystemInstruction = `${BASE_SYSTEM_PROMPT}
@@ -373,16 +386,17 @@ Specialist Agent Context: ${agentSpecificInstruction}
 ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClinical Reference Guidelines:\n${retrievedGuidelines}` : ''}`;
   }
 
-  // 6. Retrieve Recent History for Session (Max 6 messages for token efficiency and speed)
+  // 6. Retrieve Recent History for Session (Max 10 messages for rich multi-turn context)
   let pastMessages: any[] = [];
   try {
-    pastMessages = await prisma.chatMessage.findMany({
+    const recentMessages = await prisma.chatMessage.findMany({
       where: {
         sessionId: activeSessionId,
       },
-      orderBy: { createdAt: 'asc' },
-      take: 6,
+      orderBy: { createdAt: 'desc' },
+      take: 10,
     });
+    pastMessages = recentMessages.reverse();
   } catch (err: any) {
     logger.warn(`[HridyaAI DB Warning] History fetch deferred: ${err.message}`);
   }
@@ -397,6 +411,7 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
 
   const candidateModels = Array.from(new Set([
     GEMINI_MODEL,
+    'gemini-3.5-flash-lite',
     'gemini-2.5-flash',
   ])).filter((m) => m !== 'gemini-3.6-flash');
 
@@ -416,13 +431,6 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
         {
           model: mName,
           systemInstruction: fullSystemInstruction,
-          // @ts-ignore
-          generationConfig: {
-            // @ts-ignore
-            thinkingConfig: {
-              thinkingBudget: 0,
-            },
-          },
         },
         { timeout: 30000 }
       );
@@ -533,7 +541,8 @@ export const askHridyaAIStream = async (
   sessionId: string | null,
   message: string,
   onChunk: (chunk: string) => void,
-  onStage?: (stage: { stage: string; text: string }) => void
+  onStage?: (stage: { stage: string; text: string }) => void,
+  isCancelled?: () => boolean
 ): Promise<OrchestratorResponse> => {
   const startTime = performance.now();
   let dbTimeMs = 0;
@@ -724,19 +733,19 @@ Your symptoms indicate a potential acute cardiovascular event.
   } else {
     let agentSpecificInstruction = "";
     if (intent === 'DIET') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Diet Agent. Provide cardiac-friendly diet recommendations, emphasizing DASH/Mediterranean low-sodium nutrition.`;
+      agentSpecificInstruction = `Specialist Focus: Diet & Nutrition. Provide practical, heart-healthy dietary guidance emphasizing DASH and Mediterranean dietary patterns, sodium reduction, and potassium-rich whole foods tailored to cardiac health.`;
     } else if (intent === 'EXERCISE') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Exercise Agent. Suggest safe aerobic and conditioning routines aligned with cardiovascular guidelines.`;
+      agentSpecificInstruction = `Specialist Focus: Physical Activity & Conditioning. Recommend safe, evidence-based aerobic and conditioning routines aligned with AHA guidelines, explaining heart rate zones, gradual progression, and warning signs to pause activity.`;
     } else if (intent === 'REPORT') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Report Agent. Help the patient interpret clinical lab markers (cholesterol, glucose, ECG).`;
+      agentSpecificInstruction = `Specialist Focus: Laboratory & Diagnostic Reports. Help the patient interpret clinical markers (lipid panel, fasting blood glucose, HbA1c, ECG, CBC) in clear, understandable language with reference ranges and clinical significance.`;
     } else if (intent === 'NEARBY') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Nearby Health Agent. Guide the patient on locating nearby clinics, hospitals, or cardiologists.`;
+      agentSpecificInstruction = `Specialist Focus: Healthcare Navigation. Guide the patient in locating nearby cardiac care centers, cardiologists, or emergency facilities based on their clinical urgency.`;
     } else if (intent === 'PREDICTION' || intent === 'MEDICAL') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Diagnosis Agent. Explain cardiovascular risk factors, blood pressure metrics, and preventive guidelines clearly.`;
+      agentSpecificInstruction = `Specialist Focus: Cardiovascular Risk & Prevention. Clearly explain cardiovascular risk factors, blood pressure classifications (ACC/AHA standards), and lifestyle prevention strategies.`;
     } else if (intent === 'MEDICATION') {
-      agentSpecificInstruction = `You are HridyaAI's specialist Medication Agent. Provide educational context on standard cardiovascular medications.`;
+      agentSpecificInstruction = `Specialist Focus: Medication Education. Provide clear educational context on standard cardiovascular medications (statins, ACE inhibitors, beta-blockers), their purpose, general adherence tips, and common side effects to discuss with their doctor.`;
     } else {
-      agentSpecificInstruction = `You are HridyaAI, an intelligent healthcare assistant.`;
+      agentSpecificInstruction = `Specialist Focus: General Cardiovascular Guidance.`;
     }
 
     fullSystemInstruction = `${BASE_SYSTEM_PROMPT}
@@ -745,16 +754,17 @@ Specialist Agent Context: ${agentSpecificInstruction}
 ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClinical Reference Guidelines:\n${retrievedGuidelines}` : ''}`;
   }
 
-  // 6. Retrieve Recent History for Session (Max 6 messages for token efficiency and speed)
+  // 6. Retrieve Recent History for Session (Max 10 messages for rich multi-turn context)
   let pastMessages: any[] = [];
   try {
-    pastMessages = await prisma.chatMessage.findMany({
+    const recentMessages = await prisma.chatMessage.findMany({
       where: {
         sessionId: activeSessionId,
       },
-      orderBy: { createdAt: 'asc' },
-      take: 6,
+      orderBy: { createdAt: 'desc' },
+      take: 10,
     });
+    pastMessages = recentMessages.reverse();
   } catch (err: any) {
     logger.warn(`[HridyaAI DB Warning] History fetch deferred: ${err.message}`);
   }
@@ -770,6 +780,7 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
 
   const candidateModels = Array.from(new Set([
     GEMINI_MODEL,
+    'gemini-3.5-flash-lite',
     'gemini-2.5-flash',
   ])).filter((m) => m !== 'gemini-3.6-flash');
 
@@ -788,13 +799,6 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
         {
           model: mName,
           systemInstruction: fullSystemInstruction,
-          // @ts-ignore
-          generationConfig: {
-            // @ts-ignore
-            thinkingConfig: {
-              thinkingBudget: 0,
-            },
-          },
         },
         { timeout: 30000 }
       );
@@ -803,33 +807,56 @@ ${patientContext ? `\n${patientContext}\n` : ''}${retrievedGuidelines ? `\nClini
         const chat = model.startChat({ history: chatHistory });
         const streamResult = await chat.sendMessageStream(message);
         for await (const chunk of streamResult.stream) {
-          const chunkText = chunk.text();
+          if (isCancelled?.()) {
+            logger.info('[HridyaAI Stream] Stream aborted by client.');
+            break;
+          }
+          let chunkText = '';
+          try {
+            chunkText = chunk.text();
+          } catch (tErr: any) {
+            // Safety or empty candidate finish block
+          }
           if (chunkText) {
             reply += chunkText;
             onChunk(chunkText);
           }
         }
-        const finalResponse = await streamResult.response;
-        const usage = finalResponse.usageMetadata;
-        if (usage) {
-          inputTokens = usage.promptTokenCount || 0;
-          outputTokens = usage.candidatesTokenCount || 0;
+        if (!isCancelled?.()) {
+          const finalResponse = await streamResult.response;
+          const usage = finalResponse.usageMetadata;
+          if (usage) {
+            inputTokens = usage.promptTokenCount || 0;
+            outputTokens = usage.candidatesTokenCount || 0;
+          }
         }
       } catch (historyErr: any) {
-        logger.warn(`[HridyaAI Stream] History rejected by model ${mName} (${historyErr.message}). Falling back to direct stream.`);
-        const streamResult = await model.generateContentStream(message);
-        for await (const chunk of streamResult.stream) {
-          const chunkText = chunk.text();
-          if (chunkText) {
-            reply += chunkText;
-            onChunk(chunkText);
+        logger.warn(`[HridyaAI Stream] History stream rejected (${historyErr.message}).`);
+        // ONLY retry with direct stream if NO chunks have been emitted yet to prevent duplicate text
+        if (!reply && !isCancelled?.()) {
+          logger.info(`[HridyaAI Stream] Retrying via direct stream without history.`);
+          const streamResult = await model.generateContentStream(message);
+          for await (const chunk of streamResult.stream) {
+            if (isCancelled?.()) break;
+            let chunkText = '';
+            try {
+              chunkText = chunk.text();
+            } catch (tErr: any) {}
+            if (chunkText) {
+              reply += chunkText;
+              onChunk(chunkText);
+            }
           }
-        }
-        const finalResponse = await streamResult.response;
-        const usage = finalResponse.usageMetadata;
-        if (usage) {
-          inputTokens = usage.promptTokenCount || 0;
-          outputTokens = usage.candidatesTokenCount || 0;
+          if (!isCancelled?.()) {
+            const finalResponse = await streamResult.response;
+            const usage = finalResponse.usageMetadata;
+            if (usage) {
+              inputTokens = usage.promptTokenCount || 0;
+              outputTokens = usage.candidatesTokenCount || 0;
+            }
+          }
+        } else if (!reply) {
+          throw historyErr;
         }
       }
 

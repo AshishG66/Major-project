@@ -16,7 +16,23 @@ import type { ClinicalReportPredictionResult } from '../types/clinicalReport';
 import SmartWeightRecommendationCard from '../components/SmartWeightRecommendationCard';
 import { getSmartWeightRecommendation } from '../utils/weightRecommendation';
 
+import ThreeHeart from '../components/ThreeHeart';
+import { useGLTF } from '@react-three/drei';
+
+// Preload canonical 3D heart model independently of the prediction request
+try {
+  useGLTF.preload('/beating-heart.glb');
+} catch {}
+
 const DigitalTwinSuite = lazy(() => import('../components/DigitalTwinSuite'));
+
+const SCAN_STAGES = [
+  { id: 1, label: 'Processing patient information', key: 'VALIDATING' },
+  { id: 2, label: 'Analyzing cardiovascular risk', key: 'RUNNING_MODEL' },
+  { id: 3, label: 'Generating explainable AI insights', key: 'EXPLAINABILITY' },
+  { id: 4, label: 'Updating the Digital Twin', key: 'DIGITAL_TWIN' },
+  { id: 5, label: 'Preparing the final report', key: 'PREPARING_REPORT' },
+];
 
 const scanSchema = z.object({
   age: z.preprocess((val) => Number(val), z.number().int().min(18, 'Must be at least 18').max(120)),
@@ -69,16 +85,19 @@ export default function PredictionWizardPage() {
   // Multi-stage AI Scanning Animation States & Refs
   const [isScanningAnim, setIsScanningAnim] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
-  const [scanStageText, setScanStageText] = useState('Validating patient information...');
+  const [scanStageText, setScanStageText] = useState('Processing patient information...');
+  const [currentScanStageKey, setCurrentScanStageKey] = useState<string>('VALIDATING');
+  const [activeScanFormData, setActiveScanFormData] = useState<Partial<ScanFormValues> | null>(null);
+  const [isSubmittingScan, setIsSubmittingScan] = useState(false);
   const scanTimerRefs = useRef<any[]>([]);
 
   const STAGE_PROGRESS_MAP: Record<string, number> = {
-    VALIDATING: 15,
-    FETCHING_HISTORY: 30,
-    RUNNING_MODEL: 50,
-    EXPLAINABILITY: 70,
-    DIGITAL_TWIN: 85,
-    PREPARING_REPORT: 95,
+    VALIDATING: 20,
+    FETCHING_HISTORY: 35,
+    RUNNING_MODEL: 55,
+    EXPLAINABILITY: 75,
+    DIGITAL_TWIN: 90,
+    PREPARING_REPORT: 98,
     COMPLETE: 100,
   };
 
@@ -86,8 +105,9 @@ export default function PredictionWizardPage() {
     scanTimerRefs.current.forEach(clearTimeout);
     scanTimerRefs.current = [];
     setIsScanningAnim(true);
-    setScanProgress(15);
-    setScanStageText('Validating patient information...');
+    setScanProgress(20);
+    setCurrentScanStageKey('VALIDATING');
+    setScanStageText('Processing patient information...');
   };
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -194,6 +214,8 @@ export default function PredictionWizardPage() {
     setScanError(null);
     setScanProgress(100);
     setScanStageText('Scan complete');
+    setCurrentScanStageKey('COMPLETE');
+    setIsSubmittingScan(false);
     setIsScanningAnim(false);
 
     // Merge submitted form values into scanResult as the authoritative
@@ -294,9 +316,11 @@ export default function PredictionWizardPage() {
       scanTimerRefs.current.forEach(clearTimeout);
       scanTimerRefs.current = [];
       setIsScanningAnim(false);
+      setIsSubmittingScan(false);
       setScanError(err?.message || 'Failed to complete cardiac scan. Please try again.');
     },
     onSuccess: (data, submittedFormValues) => {
+      setIsSubmittingScan(false);
       handleScanSuccess(data, submittedFormValues);
     }
   });
@@ -340,17 +364,21 @@ export default function PredictionWizardPage() {
             try {
               const event = JSON.parse(trimmed.slice(5).trim());
               if (event.stage) {
+                setCurrentScanStageKey(event.stage);
                 setScanProgress(STAGE_PROGRESS_MAP[event.stage] || (event.step ? event.step * 14 : 50));
                 if (event.text) setScanStageText(event.text);
               }
               if (event.stage === 'COMPLETE' && event.result) {
                 scanCompleted = true;
+                setIsSubmittingScan(false);
                 handleScanSuccess(event.result, formData);
               } else if (event.stage === 'ERROR') {
+                setIsSubmittingScan(false);
                 throw new Error(event.error || 'Prediction calculation failed');
               }
             } catch (pErr: any) {
               if (pErr.message && pErr.message !== 'Unexpected end of JSON input') {
+                setIsSubmittingScan(false);
                 throw pErr;
               }
             }
@@ -378,6 +406,13 @@ export default function PredictionWizardPage() {
   };
 
   const onSubmit = (data: ScanFormValues) => {
+    if (isSubmittingScan || isScanningAnim || scanMutation.isPending) {
+      console.warn('[RiskScan] Duplicate submission prevented.');
+      return;
+    }
+    setIsSubmittingScan(true);
+    setActiveScanFormData(data);
+    setCurrentScanStageKey('VALIDATING');
     console.log('[RiskScan] Form state submitted:', JSON.stringify(data, null, 2));
     executeScanWithStreaming(data);
   };
@@ -494,50 +529,111 @@ export default function PredictionWizardPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       
-      {/* Professional AI Scanning Loader Overlay */}
+      {/* Interactive 3D Digital Twin AI Scanning Modal */}
       <AnimatePresence>
         {isScanningAnim && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center"
+            className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-6 text-center"
           >
-            <div className="max-w-md w-full glass-panel p-8 rounded-3xl border border-slate-200 space-y-6 bg-white shadow-saas-lg">
-              <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border-4 border-blue-500/20 animate-ping" />
-                <div className="absolute inset-0 rounded-full border-4 border-t-blue-600 border-r-transparent border-b-rose-500 border-l-transparent animate-spin" />
-                <Heart className="h-10 w-10 text-rose-500 animate-pulse" />
-              </div>
-
-              <div className="space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600 flex items-center justify-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-                  AI CLINICAL DIGITAL TWIN GENERATOR
+            <div className="max-w-xl w-full glass-panel p-6 sm:p-7 rounded-3xl border border-slate-200/90 space-y-5 bg-white shadow-saas-lg overflow-hidden">
+              {/* Header Badge */}
+              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 animate-pulse text-blue-600" />
+                  3D DIGITAL TWIN SCAN IN PROGRESS
                 </span>
-                <h3 className="text-lg font-display font-extrabold text-slate-900 leading-tight">
-                  {scanStageText}
-                </h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                  Real-Time Biomechanics
+                </span>
               </div>
 
-              {/* Animated Progress Bar */}
-              <div className="space-y-1.5">
+              {/* 3D Heart Live Viewport (Immediate, independent, zero delay) */}
+              <div className="w-full h-56 sm:h-64 relative rounded-2xl overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border border-slate-800 shadow-inner flex items-center justify-center">
+                <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-full border border-slate-700/60 text-[9.5px] font-bold text-slate-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                  <span>3D CARDIAC TWIN</span>
+                </div>
+                <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-full border border-slate-700/60 text-[9.5px] font-bold text-rose-400">
+                  <Heart className="w-3 h-3 animate-pulse text-rose-500" />
+                  <span>{activeScanFormData?.heartRate || 72} BPM</span>
+                </div>
+
+                <ThreeHeart
+                  heartRate={activeScanFormData?.heartRate || 72}
+                  systolicBP={activeScanFormData?.systolicBP || 120}
+                  diastolicBP={activeScanFormData?.diastolicBP || 80}
+                  cholesterol={activeScanFormData?.cholesterol || 190}
+                  bmi={activeScanFormData?.weight && activeScanFormData?.height ? parseFloat((activeScanFormData.weight / ((activeScanFormData.height / 100) ** 2)).toFixed(1)) : 24.5}
+                  smoking={activeScanFormData?.smoking || false}
+                  riskLevel="LOW"
+                  glowIntensity={1.4}
+                />
+              </div>
+
+              {/* Progress Indicator & Stage Text */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-display font-extrabold text-slate-900">{scanStageText}</span>
+                  <span className="font-bold text-blue-600">{scanProgress}%</span>
+                </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
                   <motion.div
                     className="h-full bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500 rounded-full"
                     initial={{ width: '0%' }}
                     animate={{ width: `${scanProgress}%` }}
-                    transition={{ duration: 0.4 }}
+                    transition={{ duration: 0.35 }}
                   />
-                </div>
-                <div className="flex justify-between text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                  <span>Synthesizing Hemodynamics</span>
-                  <span>{scanProgress}%</span>
                 </div>
               </div>
 
+              {/* 5 Clear Diagnostic Progress Stages */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1 text-left">
+                {SCAN_STAGES.map((s, idx) => {
+                  const stageReqIndexMap: Record<string, number> = {
+                    VALIDATING: 0,
+                    FETCHING_HISTORY: 0,
+                    RUNNING_MODEL: 1,
+                    EXPLAINABILITY: 2,
+                    DIGITAL_TWIN: 3,
+                    PREPARING_REPORT: 4,
+                    COMPLETE: 5,
+                  };
+                  const activeStepNum = stageReqIndexMap[currentScanStageKey] ?? 0;
+                  const isDone = activeStepNum > idx || currentScanStageKey === 'COMPLETE';
+                  const isCurrent = activeStepNum === idx && currentScanStageKey !== 'COMPLETE';
+
+                  return (
+                    <div
+                      key={s.id}
+                      className={`p-2 rounded-xl border text-[9.5px] flex flex-col justify-between transition-all ${
+                        isDone
+                          ? 'bg-emerald-50/90 border-emerald-200 text-emerald-800'
+                          : isCurrent
+                          ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-xs ring-1 ring-blue-400/40'
+                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold">Step {s.id}</span>
+                        {isDone ? (
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                        ) : isCurrent ? (
+                          <Loader2 className="h-3 w-3 text-blue-600 animate-spin shrink-0" />
+                        ) : (
+                          <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                        )}
+                      </div>
+                      <span className="leading-tight font-medium text-[9px] line-clamp-2">{s.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
               <p className="text-[10px] font-light text-slate-500 italic">
-                Fusing XGBoost classification, SHAP attributions, and 3D GLB skeletal biomechanics...
+                Fusing XGBoost classification, Tree-SHAP drivers, and skeletal 3D cardiac biomechanics...
               </p>
             </div>
           </motion.div>
@@ -799,10 +895,10 @@ export default function PredictionWizardPage() {
                     </button>
                     <button
                       type="submit"
-                      disabled={scanMutation.isPending || isScanningAnim}
-                      className="px-8 py-3 text-xs font-bold rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 flex items-center justify-center space-x-2 shadow-xs transition-all"
+                      disabled={scanMutation.isPending || isScanningAnim || isSubmittingScan}
+                      className="px-8 py-3 text-xs font-bold rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-xs transition-all cursor-pointer"
                     >
-                      {scanMutation.isPending || isScanningAnim ? (
+                      {scanMutation.isPending || isScanningAnim || isSubmittingScan ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
                           <span>Generating Digital Twin...</span>

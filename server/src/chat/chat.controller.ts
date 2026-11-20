@@ -75,6 +75,12 @@ export const sendMessage = async (req: Request, res: Response) => {
 
 export const streamMessage = async (req: Request, res: Response) => {
   const startTime = performance.now();
+  let isClientConnected = true;
+
+  req.on('close', () => {
+    isClientConnected = false;
+  });
+
   try {
     const userId = (req as AuthRequest).user?.id;
     if (!userId) {
@@ -86,9 +92,10 @@ export const streamMessage = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Message content is required.' });
     }
 
-    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
     const result = await askHridyaAIStream(
@@ -96,21 +103,26 @@ export const streamMessage = async (req: Request, res: Response) => {
       sessionId,
       message,
       (chunk) => {
+        if (!isClientConnected || res.writableEnded) return;
         res.write(`data: ${JSON.stringify({ type: 'CHUNK', text: chunk })}\n\n`);
       },
       (stage) => {
+        if (!isClientConnected || res.writableEnded) return;
         res.write(`data: ${JSON.stringify({ type: 'STAGE', stage: stage.stage, text: stage.text })}\n\n`);
-      }
+      },
+      () => !isClientConnected
     );
 
-    res.write(`data: ${JSON.stringify({
-      type: 'DONE',
-      sessionId: result.sessionId,
-      reply: result.reply,
-      agentType: result.agentType,
-      debug: result.debug,
-    })}\n\n`);
-    res.end();
+    if (isClientConnected && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({
+        type: 'DONE',
+        sessionId: result.sessionId,
+        reply: result.reply,
+        agentType: result.agentType,
+        debug: result.debug,
+      })}\n\n`);
+      res.end();
+    }
   } catch (error: any) {
     logger.error(`Error in streamMessage: ${error.message}`);
     const msg = error.message || 'Unknown error';
@@ -121,12 +133,14 @@ export const streamMessage = async (req: Request, res: Response) => {
     else if (msg.includes('503') || msg.includes('overloaded')) statusCode = 503;
     else if (msg.includes('timeout') || msg.includes('DEADLINE_EXCEEDED')) statusCode = 504;
 
-    res.write(`data: ${JSON.stringify({
-      type: 'ERROR',
-      statusCode,
-      message: msg,
-    })}\n\n`);
-    res.end();
+    if (isClientConnected && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({
+        type: 'ERROR',
+        statusCode,
+        message: msg,
+      })}\n\n`);
+      res.end();
+    }
   }
 };
 

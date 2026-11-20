@@ -44,14 +44,13 @@ export default function ChatPage() {
   const [routingLog, setRoutingLog] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const timerRefs = useRef<any[]>([]);
-  const streamTimerRef = useRef<any>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const isSubmittingRef = useRef<boolean>(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [lastDebugInfo, setLastDebugInfo] = useState<any>(null);
 
   // Streaming & Message Action states
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
-  const [streamingText, setStreamingText] = useState<string>('');
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
   const [openCitationId, setOpenCitationId] = useState<string | null>(null);
@@ -156,7 +155,7 @@ export default function ChatPage() {
     }
   }, [emergencyAlert]);
 
-  // Scroll to bottom & handle typewriter animation for last assistant response
+  // Scroll to bottom & sync specialist agent badges
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     
@@ -168,26 +167,6 @@ export default function ChatPage() {
           if (lastMsg.agentType === 'EMERGENCY') {
             setEmergencyAlert(true);
           }
-        }
-
-        // Trigger typewriter streaming for new assistant response
-        if (streamingMsgId !== lastMsg.id && lastMsg.content) {
-          setStreamingMsgId(lastMsg.id);
-          setStreamingText('');
-          
-          let idx = 0;
-          const fullText = lastMsg.content;
-          if (streamTimerRef.current) clearInterval(streamTimerRef.current);
-          
-          streamTimerRef.current = setInterval(() => {
-            idx += Math.max(1, Math.floor(fullText.length / 45));
-            if (idx >= fullText.length) {
-              setStreamingText(fullText);
-              clearInterval(streamTimerRef.current);
-            } else {
-              setStreamingText(fullText.slice(0, idx));
-            }
-          }, 20);
         }
       }
     }
@@ -210,7 +189,9 @@ export default function ChatPage() {
   useEffect(() => {
     return () => {
       timerRefs.current.forEach(clearTimeout);
-      if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, []);
 
@@ -335,6 +316,10 @@ export default function ChatPage() {
     let targetSessionId = currentSessionId;
     let resolvedAgentType = activeAgentType;
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    setStreamingMsgId(pendingMsgId);
+
     try {
       const response = await fetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',
@@ -343,14 +328,16 @@ export default function ChatPage() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ message: text, sessionId: currentSessionId }),
+        signal: abortController.signal,
       });
 
       if (!response.ok || !response.body) {
+        setStreamingMsgId(null);
         return sendMessageMutation.mutate({ message: text, sessionId: currentSessionId });
       }
 
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder('utf-8');
       let buffer = '';
       let streamFinished = false;
 
@@ -359,88 +346,109 @@ export default function ChatPage() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        let boundaryIndex: number;
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('data:')) {
-            try {
-              const event = JSON.parse(trimmed.slice(5).trim());
-              if (event.type === 'STAGE') {
-                if (event.text) setRoutingLog(event.text);
-              } else if (event.type === 'CHUNK') {
-                accumulatedText += event.text;
-                // Update the pending assistant message progressively
-                queryClient.setQueryData(['chatMessages', currentSessionId], (oldData: any) => {
-                  const oldMsgs = oldData?.messages || [];
-                  return {
-                    success: true,
-                    messages: oldMsgs.map((m: any) =>
-                      m.id === pendingMsgId
-                        ? { ...m, isPending: false, content: accumulatedText, agentType: resolvedAgentType }
-                        : m
-                    ),
-                  };
-                });
-              } else if (event.type === 'DONE') {
-                streamFinished = true;
-                targetSessionId = event.sessionId || currentSessionId;
-                resolvedAgentType = event.agentType || 'ORCHESTRATOR';
-                setActiveAgentType(resolvedAgentType);
-                if (resolvedAgentType === 'EMERGENCY') {
-                  setEmergencyAlert(true);
+        while ((boundaryIndex = buffer.indexOf('\n\n')) !== -1) {
+          const eventBlock = buffer.slice(0, boundaryIndex);
+          buffer = buffer.slice(boundaryIndex + 2);
+
+          const lines = eventBlock.split(/\r?\n/);
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue;
+            if (trimmed.startsWith('data:')) {
+              const rawJson = trimmed.slice(5).trim();
+              if (!rawJson) continue;
+              try {
+                const event = JSON.parse(rawJson);
+                if (event.type === 'STAGE') {
+                  if (event.text) setRoutingLog(event.text);
+                } else if (event.type === 'CHUNK') {
+                  if (event.text) {
+                    accumulatedText += event.text;
+                    queryClient.setQueryData(['chatMessages', currentSessionId], (oldData: any) => {
+                      const oldMsgs = oldData?.messages || [];
+                      return {
+                        success: true,
+                        messages: oldMsgs.map((m: any) =>
+                          m.id === pendingMsgId
+                            ? { ...m, isPending: false, content: accumulatedText, agentType: resolvedAgentType }
+                            : m
+                        ),
+                      };
+                    });
+                  }
+                } else if (event.type === 'DONE') {
+                  streamFinished = true;
+                  targetSessionId = event.sessionId || currentSessionId;
+                  resolvedAgentType = event.agentType || 'ORCHESTRATOR';
+                  setActiveAgentType(resolvedAgentType);
+                  if (resolvedAgentType === 'EMERGENCY') {
+                    setEmergencyAlert(true);
+                  }
+                  if (event.debug) {
+                    setLastDebugInfo(event.debug);
+                  }
+                  setRoutingLog(null);
+                  setStreamingMsgId(null);
+                  isSubmittingRef.current = false;
+                  updateActiveSession(targetSessionId);
+
+                  // Finalize assistant message
+                  queryClient.setQueryData(['chatMessages', targetSessionId], (oldData: any) => {
+                    const msgs = oldData?.messages || [];
+                    return {
+                      success: true,
+                      messages: msgs.map((m: any) =>
+                        m.id === pendingMsgId
+                          ? { ...m, isPending: false, content: event.reply || accumulatedText, agentType: resolvedAgentType }
+                          : m
+                      ),
+                    };
+                  });
+
+                  queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
+                } else if (event.type === 'ERROR') {
+                  throw new Error(event.message || 'Stream processing error');
                 }
-                if (event.debug) {
-                  setLastDebugInfo(event.debug);
+              } catch (pErr: any) {
+                if (pErr.message?.includes('Stream processing error')) {
+                  throw pErr;
                 }
-                setRoutingLog(null);
-                updateActiveSession(targetSessionId);
-
-                // Finalize assistant message
-                queryClient.setQueryData(['chatMessages', targetSessionId], (oldData: any) => {
-                  const msgs = oldData?.messages || [];
-                  return {
-                    success: true,
-                    messages: msgs.map((m: any) =>
-                      m.id === pendingMsgId
-                        ? { ...m, isPending: false, content: event.reply || accumulatedText, agentType: resolvedAgentType }
-                        : m
-                    ),
-                  };
-                });
-
-                queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
-              } else if (event.type === 'ERROR') {
-                throw new Error(event.message || 'Stream processing error');
-              }
-            } catch (pErr: any) {
-              if (pErr.message && pErr.message !== 'Unexpected end of JSON input') {
-                throw pErr;
+                console.warn('[HridyaAI Stream] SSE JSON parse warning:', pErr.message);
               }
             }
           }
         }
       }
 
-      if (!streamFinished && !accumulatedText) {
-        sendMessageMutation.mutate({ message: text, sessionId: currentSessionId });
-      } else {
-        isSubmittingRef.current = false;
+      if (!streamFinished) {
+        setStreamingMsgId(null);
+        if (!accumulatedText) {
+          sendMessageMutation.mutate({ message: text, sessionId: currentSessionId });
+        } else {
+          isSubmittingRef.current = false;
+        }
       }
     } catch (err: any) {
-      console.warn('[HridyaAI Stream] Stream interrupted, fallback to standard message:', err.message);
+      setStreamingMsgId(null);
+      setRoutingLog(null);
+      if (err.name === 'AbortError') {
+        console.info('[HridyaAI Stream] User stopped response stream.');
+        isSubmittingRef.current = false;
+        return;
+      }
+      console.warn('[HridyaAI Stream] Stream interrupted:', err.message);
       if (!accumulatedText) {
         sendMessageMutation.mutate({ message: text, sessionId: currentSessionId });
       } else {
         isSubmittingRef.current = false;
-        setRoutingLog(null);
       }
     }
   };
 
   const triggerSend = (text: string) => {
-    if (!text.trim() || sendMessageMutation.isPending || isSubmittingRef.current) return;
+    if (!text.trim() || sendMessageMutation.isPending || isSubmittingRef.current || streamingMsgId !== null) return;
     isSubmittingRef.current = true;
     setLastUserPrompt(text);
     setInputText('');
@@ -484,13 +492,13 @@ export default function ChatPage() {
   };
 
   const handleStopStreaming = () => {
-    if (streamTimerRef.current) {
-      clearInterval(streamTimerRef.current);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
-    const lastMsg = messagesRes?.messages?.[messagesRes.messages.length - 1];
-    if (lastMsg) {
-      setStreamingText(lastMsg.content);
-    }
+    setStreamingMsgId(null);
+    setRoutingLog(null);
+    isSubmittingRef.current = false;
   };
 
   const handleCopyText = (id: string, text: string) => {
@@ -545,21 +553,43 @@ export default function ChatPage() {
 
   // Rich Markdown Parser with Code Block Copy Buttons & Table Support
   const renderMessageContent = (content: string, msgId: string, isStreamingNow: boolean) => {
-    const textToRender = isStreamingNow ? streamingText : content;
+    let text = content || '';
 
-    let formatted = textToRender
+    if (isStreamingNow) {
+      // Balance unclosed code blocks during streaming
+      const codeBlockCount = (text.match(/```/g) || []).length;
+      if (codeBlockCount % 2 !== 0) {
+        text += '\n```';
+      }
+
+      // Balance unclosed inline code (excluding triple backticks)
+      const textWithoutBlocks = text.replace(/```[\s\S]*?```/g, '');
+      const inlineCount = (textWithoutBlocks.match(/`/g) || []).length;
+      if (inlineCount % 2 !== 0) {
+        text += '`';
+      }
+
+      // Balance unclosed bold
+      const boldCount = (text.match(/\*\*/g) || []).length;
+      if (boldCount % 2 !== 0) {
+        text += '**';
+      }
+    }
+
+    // HTML escape special characters for security
+    let formatted = text
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
     // Code Blocks: ```lang ... ```
-    formatted = formatted.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
+    formatted = formatted.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
       const codeId = `${msgId}-${Math.random().toString(36).substr(2, 5)}`;
       const cleanLang = lang || 'code';
       const isCodeCopied = copiedCodeId === codeId;
 
       return `
-        <div class="my-2.5 rounded-xl border border-slate-200 bg-slate-900 text-slate-100 overflow-hidden shadow-xs">
+        <div class="my-2.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-100 overflow-hidden shadow-xs">
           <div class="px-3.5 py-1.5 bg-slate-800 border-b border-slate-700 flex justify-between items-center text-[9px] font-mono text-slate-400">
             <span class="uppercase font-bold">${cleanLang}</span>
             <button onclick="window.__copyCode && window.__copyCode('${codeId}', \`${encodeURIComponent(code.trim())}\`)" class="hover:text-white transition-colors flex items-center space-x-1">
@@ -571,22 +601,56 @@ export default function ChatPage() {
       `;
     });
 
-    // Bold, Italics, Lists
+    // Headers
+    formatted = formatted.replace(/^### (.*$)/gm, '<h3 class="text-sm font-bold text-slate-900 mt-3 mb-1">$1</h3>');
+    formatted = formatted.replace(/^## (.*$)/gm, '<h2 class="text-base font-bold text-slate-900 mt-3.5 mb-1.5">$1</h2>');
+    formatted = formatted.replace(/^# (.*$)/gm, '<h1 class="text-lg font-bold text-slate-900 mt-4 mb-2">$1</h1>');
+
+    // Blockquotes (note > became &gt;)
+    formatted = formatted.replace(/^&gt;\s(.*)$/gm, '<blockquote class="border-l-4 border-blue-500 pl-3 py-1 my-1.5 italic text-slate-600 bg-blue-50/50 rounded-r-lg">$1</blockquote>');
+
+    // Bold
     formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
-    formatted = formatted.replace(/^\*\s(.*)$/gm, '<li class="ml-4 list-disc mt-1 font-light text-slate-700">$1</li>');
-    formatted = formatted.replace(/^-\s(.*)$/gm, '<li class="ml-4 list-disc mt-1 font-light text-slate-700">$1</li>');
-    formatted = formatted.replace(/^\d+\.\s(.*)$/gm, '<li class="ml-4 list-decimal mt-1 font-light text-slate-700">$1</li>');
-    formatted = formatted.replace(/\*(.*?)\*/g, '<em class="italic text-slate-800">$1</em>');
+
+    // Italics (single asterisks not part of bold or lists)
+    formatted = formatted.replace(/(?<!\*)\*([^*\n\r]+)\*(?!\*)/g, '<em class="italic text-slate-800">$1</em>');
+
+    // Inline Code
     formatted = formatted.replace(/`([^`]+)`/g, '<code class="bg-slate-100 text-blue-600 px-1.5 py-0.5 rounded text-[11px] font-mono border border-slate-200">$1</code>');
 
-    // Blockquotes
-    formatted = formatted.replace(/^>\s(.*)$/gm, '<blockquote class="border-l-4 border-blue-500 pl-3 py-1 my-1.5 italic text-slate-600 bg-blue-50/50 rounded-r-lg">$1</blockquote>');
+    // Lists
+    formatted = formatted.replace(/^[\*\-]\s+(.*)$/gm, '<li class="ml-4 list-disc mt-1 text-slate-700">$1</li>');
+    formatted = formatted.replace(/^\d+\.\s+(.*)$/gm, '<li class="ml-4 list-decimal mt-1 text-slate-700">$1</li>');
+
+    // Group contiguous <li> items into <ul> and <ol>
+    formatted = formatted.replace(/((?:<li class="[^"]*list-disc[^"]*">.*?<\/li>\s*)+)/gs, (match) => {
+      return `<ul class="my-2 space-y-1">${match.trim()}</ul>\n`;
+    });
+    formatted = formatted.replace(/((?:<li class="[^"]*list-decimal[^"]*">.*?<\/li>\s*)+)/gs, (match) => {
+      return `<ol class="my-2 space-y-1">${match.trim()}</ol>\n`;
+    });
+
+    // Paragraphs
+    const blocks = formatted.split(/\n{2,}/);
+    const formattedBlocks = blocks.map((block) => {
+      const trimmed = block.trim();
+      if (!trimmed) return '';
+      if (/^<(h[1-6]|blockquote|div|ul|ol|pre)/i.test(trimmed)) {
+        return trimmed;
+      }
+      const withBreaks = trimmed.replace(/\n/g, '<br />');
+      return `<p class="leading-relaxed mb-2">${withBreaks}</p>`;
+    });
+
+    const finalHtml = formattedBlocks.filter(Boolean).join('\n');
 
     return (
-      <div 
-        dangerouslySetInnerHTML={{ __html: formatted }} 
-        className="text-xs md:text-sm leading-relaxed space-y-1.5 font-light" 
-      />
+      <div className="text-xs md:text-sm leading-relaxed font-normal text-slate-800">
+        <div dangerouslySetInnerHTML={{ __html: finalHtml }} />
+        {isStreamingNow && (
+          <span className="inline-block w-1.5 h-3.5 ml-1 bg-blue-600 animate-pulse rounded-xs align-middle" />
+        )}
+      </div>
     );
   };
   const sessions = sessionsRes?.sessions || [];
@@ -789,7 +853,7 @@ export default function ChatPage() {
               {messages.map((msg: any, mIdx: number) => {
                 const isUser = msg.role === 'USER';
                 const isLastMsg = mIdx === messages.length - 1;
-                const isStreamingNow = !isUser && isLastMsg && streamingMsgId === msg.id && streamingText.length < msg.content.length;
+                const isStreamingNow = !isUser && isLastMsg && streamingMsgId === msg.id;
                 const msgAgent = SPECIALISTS[msg.agentType] || SPECIALISTS.ORCHESTRATOR;
                 const AgentIcon = msgAgent.icon;
                 const isCopied = copiedMsgId === msg.id;
@@ -973,11 +1037,11 @@ export default function ChatPage() {
               onChange={(e) => setInputText(e.target.value)}
               placeholder={`Ask ${activeAgent.name} something, or choose a preset prompt above...`}
               className="flex-1 px-4 py-3 text-xs glass-input placeholder-slate-400 text-slate-900"
-              disabled={sendMessageMutation.isPending || (emergencyAlert && activeAgentType !== 'EMERGENCY')}
+              disabled={sendMessageMutation.isPending || streamingMsgId !== null || (emergencyAlert && activeAgentType !== 'EMERGENCY')}
             />
             <button
               type="submit"
-              disabled={sendMessageMutation.isPending || !inputText.trim() || (emergencyAlert && activeAgentType !== 'EMERGENCY')}
+              disabled={sendMessageMutation.isPending || streamingMsgId !== null || !inputText.trim() || (emergencyAlert && activeAgentType !== 'EMERGENCY')}
               className="h-10 w-10 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-xs flex items-center justify-center text-white transition-all disabled:opacity-50 shrink-0 focus:outline-none"
             >
               <Send className="h-4.5 w-4.5" />

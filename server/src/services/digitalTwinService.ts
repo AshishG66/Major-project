@@ -43,9 +43,12 @@ export async function updateDigitalTwinState(
   try {
     let existing = preloadedContext?.existingState;
     if (!existing) {
-      existing = await prisma.digitalTwinState.findUnique({
-        where: { userId },
-      });
+      existing = getCachedDigitalTwinState(userId);
+      if (!existing) {
+        existing = await prisma.digitalTwinState.findUnique({
+          where: { userId },
+        });
+      }
     }
 
     let latestPrediction = preloadedContext?.latestPrediction;
