@@ -14,6 +14,10 @@ jobs:
   postgres-migration-proof:
     name: Disposable PostgreSQL 16 + pgvector Migration Replay
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres_secure_ci_pass@127.0.0.1:5432/hridyadarpan_ci_test?schema=public
+      JWT_SECRET: hridyadarpan_super_secret_jwt_key_2026
+      NODE_ENV: test
 
     services:
       postgres:
@@ -45,26 +49,45 @@ jobs:
         working-directory: server
         run: npm ci
 
+      - name: Generate Prisma Client
+        working-directory: server
+        run: npx prisma generate
+
       - name: Verify PostgreSQL Connection and Extensions
-        env:
-          DATABASE_URL: postgresql://postgres:postgres_secure_ci_pass@localhost:5432/hridyadarpan_ci_test?schema=public
         working-directory: server
         run: |
-          npx prisma db execute --stdin <<SQL
+          # Wait up to 30 seconds for PostgreSQL port 5432 to accept connections
+          for i in {1..30}; do
+            if (pg_isready -h 127.0.0.1 -p 5432 -U postgres -d hridyadarpan_ci_test 2>/dev/null) || (nc -z 127.0.0.1 5432 2>/dev/null); then
+              echo "PostgreSQL 16 is ready and accepting connections."
+              break
+            fi
+            echo "Waiting for PostgreSQL ($i/30)..."
+            sleep 1
+          done
+
+          # Enable pgvector extension and verify database via Prisma CLI with explicit datasource URL
+          npx prisma db execute --stdin --url="$DATABASE_URL" <<SQL
           CREATE EXTENSION IF NOT EXISTS vector;
           SELECT version();
           SELECT extname, extversion FROM pg_extension;
           SQL
 
+          # Human-readable extension and version proof in CI logs
+          if command -v psql >/dev/null 2>&1; then
+            PGPASSWORD=postgres_secure_ci_pass psql -h 127.0.0.1 -p 5432 -U postgres -d hridyadarpan_ci_test -c "SELECT version();"
+            PGPASSWORD=postgres_secure_ci_pass psql -h 127.0.0.1 -p 5432 -U postgres -d hridyadarpan_ci_test -c "SELECT extname, extversion FROM pg_extension;"
+          fi
+
+      - name: Run In-Memory Migration Replay Engine
+        working-directory: server
+        run: npm run test:migration-replay
+
       - name: Replay Migrations in Order (prisma migrate deploy)
-        env:
-          DATABASE_URL: postgresql://postgres:postgres_secure_ci_pass@localhost:5432/hridyadarpan_ci_test?schema=public
         working-directory: server
         run: npx prisma migrate deploy
 
       - name: Compare Resulting Schema Against Prisma Datamodel
-        env:
-          DATABASE_URL: postgresql://postgres:postgres_secure_ci_pass@localhost:5432/hridyadarpan_ci_test?schema=public
         working-directory: server
         run: |
           npx prisma validate
